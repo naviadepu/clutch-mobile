@@ -25,7 +25,7 @@
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
-		<string>AccentColor</string>
+		<string>LaunchBackground</string>
 	</dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
@@ -43,5 +43,9 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>PinyonScript-Regular.ttf</string>
+	</array>
 </dict>
 </plist>
