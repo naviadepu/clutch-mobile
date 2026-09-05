@@ -53,6 +53,19 @@ npx expo start
 
 ---
 
+## Native iOS beta (Swift)
+
+A native SwiftUI rewrite lives in [`ios/`](ios/README.md). It uses the same
+Firebase backend and runs against the local Firebase Emulator Suite for
+development. Quick start:
+
+```bash
+make doctor   # check toolchain
+make deps     # generate project + fetch Firebase SDK
+make emulators   # terminal 1: local backend
+make app          # terminal 2: build + run on the simulator
+```
+
 ## Links
 
 - Web app: [clutch-care.vercel.app](https://clutch-care.vercel.app)

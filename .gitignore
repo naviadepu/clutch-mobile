@@ -1,0 +1,35 @@
+# --- Node / Expo (existing web + RN app) ---
+node_modules/
+.expo/
+dist/
+web-build/
+npm-debug.*
+*.orig.*
+
+# --- Xcode / SwiftPM ---
+ios/*.xcodeproj
+ios/*.xcworkspace
+!ios/*.xcworkspace/contents.xcworkspacedata
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/build/
+ios/DerivedData/
+.swiftpm/
+Package.resolved
+
+# --- Firebase ---
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*-debug.log
+/emulator-data/
+
+# --- Secrets ---
+ios/**/GoogleService-Info.plist.prod
+*.env
+.env.local
+Secrets.xcconfig
+
+# --- macOS ---
+.DS_Store

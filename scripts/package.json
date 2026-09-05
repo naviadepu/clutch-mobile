@@ -1,0 +1,12 @@
+{
+  "name": "clutch-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Dev helper scripts for the Clutch iOS app (Firestore emulator seeding, etc.)",
+  "scripts": {
+    "seed": "node seed-emulator.mjs"
+  },
+  "dependencies": {
+    "firebase": "^11.6.0"
+  }
+}
