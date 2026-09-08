@@ -1,13 +1,14 @@
 import SwiftUI
 import PencilKit
 
-/// Second screen: the tulip photo *is* the canvas. We ask for the person's name
-/// and let them write straight onto the photo, with a vertical rail of pen types
-/// and ink colors down the left edge.
+/// Second screen: the soft pink backdrop *is* the canvas. We ask for the
+/// person's name and let them write straight onto it, with a vertical rail
+/// of pen types and ink colors down the left edge.
 struct NameEntryView: View {
     @State private var canvasView = PKCanvasView()
     @State private var tool: ScribbleTool = .marker
     @State private var ink: Color = Self.inks[0]
+    @State private var goToAge = false
 
     private static let inks: [Color] = [
         .matcha,
@@ -17,45 +18,62 @@ struct NameEntryView: View {
     ]
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Image("tulip-flower")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-
-            // The scribble surface: transparent, sitting directly on the photo.
-            DrawingCanvas(canvasView: canvasView, tool: tool, ink: ink)
-                .ignoresSafeArea()
-
-            // Keeps the heading legible over the brightest part of the photo.
-            LinearGradient(
-                colors: [.black.opacity(0.55), .clear],
-                startPoint: .top,
-                endPoint: .center
-            )
-            .frame(height: 320)
+        // A plain Color base (rather than overlaying directly on the scaled
+        // image) keeps this view's *reported* layout size sane — `scaledToFill`
+        // on a portrait photo computes an oversized intrinsic frame to cover a
+        // taller screen, and chaining `.overlay` straight onto it throws off
+        // the alignment math for the tool rail below (it lands off-screen).
+        Color.clear
+            .background {
+                Image("pink-bg")
+                    .resizable()
+                    .scaledToFill()
+            }
+            .clipped()
             .ignoresSafeArea()
-            .allowsHitTesting(false)
+            .overlay(alignment: .top) {
+                VStack(spacing: 4) {
+                    // TODO: swap to the PF Pixelscript font once the licensed
+                    // file is added to Resources/Fonts and registered in
+                    // Info.plist.
+                    Text("Your name")
+                        .font(.custom("PinyonScript-Regular", size: 44))
+                        .foregroundStyle(Color(red: 0.10, green: 0.10, blue: 0.12))
 
-            Text("Tell us your name.\nScribble it however you'd like.")
-                .font(.custom("PlayfairDisplay-SemiBold", size: 24))
-                .tracking(0.2)
-                .foregroundStyle(.white)
+                    Text("scribble as you want")
+                        .font(.custom("PlayfairDisplay-SemiBold", size: 15))
+                        .tracking(0.3)
+                        .foregroundStyle(Color(red: 0.10, green: 0.10, blue: 0.12).opacity(0.55))
+                }
                 .multilineTextAlignment(.center)
-                .lineSpacing(4)
-                .lineLimit(2)
-                .minimumScaleFactor(0.7)
-                .shadow(color: .black.opacity(0.65), radius: 5, y: 1)
-                .shadow(color: .black.opacity(0.4), radius: 16, y: 0)
-                .frame(maxWidth: .infinity)
                 .padding(.top, 24)
-                .padding(.horizontal, 28)
                 .allowsHitTesting(false)
-
-            toolRail
-                .padding(.leading, 16)
-                .frame(maxHeight: .infinity, alignment: .center)
-        }
+            }
+            .overlay {
+                // The scribble surface: transparent, sitting directly on the backdrop.
+                DrawingCanvas(canvasView: canvasView, tool: tool, ink: ink)
+            }
+            .overlay(alignment: .leading) {
+                toolRail
+                    .padding(.leading, 16)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Button {
+                    goToAge = true
+                } label: {
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 52, height: 52)
+                        .background(Color(red: 0.10, green: 0.10, blue: 0.12), in: Circle())
+                        .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+                }
+                .padding(24)
+            }
+            .navigationDestination(isPresented: $goToAge) {
+                AgeEntryView()
+                    .toolbar(.hidden, for: .navigationBar)
+            }
     }
 
     private var toolRail: some View {
@@ -68,7 +86,7 @@ struct NameEntryView: View {
 
             Divider()
                 .frame(width: 26)
-                .overlay(Color.white.opacity(0.5))
+                .overlay(Color.black.opacity(0.15))
 
             ForEach(Array(Self.inks.enumerated()), id: \.offset) { _, color in
                 Button {
@@ -79,7 +97,7 @@ struct NameEntryView: View {
                         .fill(color)
                         .frame(width: 24, height: 24)
                         .overlay(
-                            Circle().strokeBorder(.white, lineWidth: color == ink ? 3 : 1.5)
+                            Circle().strokeBorder(.black.opacity(0.3), lineWidth: color == ink ? 3 : 1.5)
                         )
                 }
                 .buttonStyle(.plain)
@@ -87,16 +105,16 @@ struct NameEntryView: View {
 
             Divider()
                 .frame(width: 26)
-                .overlay(Color.white.opacity(0.5))
+                .overlay(Color.black.opacity(0.15))
 
             Button {
                 canvasView.drawing = PKDrawing()
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color(red: 0.10, green: 0.10, blue: 0.12))
                     .frame(width: 38, height: 38)
-                    .background(.white.opacity(0.18), in: Circle())
+                    .background(.black.opacity(0.08), in: Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Clear")
@@ -104,8 +122,8 @@ struct NameEntryView: View {
         .padding(.vertical, 14)
         .padding(.horizontal, 10)
         .background(.ultraThinMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
-        .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+        .overlay(Capsule().strokeBorder(.black.opacity(0.1), lineWidth: 1))
+        .shadow(color: .black.opacity(0.15), radius: 12, y: 6)
     }
 
     private func railButton(
@@ -116,10 +134,10 @@ struct NameEntryView: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(selected ? Color.black : Color.white)
+                .foregroundStyle(selected ? Color.white : Color(red: 0.10, green: 0.10, blue: 0.12))
                 .frame(width: 38, height: 38)
                 .background(
-                    selected ? AnyShapeStyle(.white) : AnyShapeStyle(.white.opacity(0.18)),
+                    selected ? AnyShapeStyle(Color(red: 0.10, green: 0.10, blue: 0.12)) : AnyShapeStyle(.black.opacity(0.08)),
                     in: Circle()
                 )
         }
