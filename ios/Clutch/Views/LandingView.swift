@@ -5,6 +5,8 @@ import SwiftUI
 struct LandingView: View {
     @State private var girlShown = false
     @State private var floating = false
+    @State private var readyToContinue = false
+    @State private var goToNameEntry = false
 
     var body: some View {
         LoopingVideoPlayer(resourceName: "background-1", resourceExtension: "mp4")
@@ -42,10 +44,27 @@ struct LandingView: View {
                             }
                         }
 
-                    AnimatedWordmark(text: "Clutch")
+                    AnimatedWordmark(text: "Clutch") {
+                        withAnimation(.easeIn(duration: 0.6)) { readyToContinue = true }
+                    }
                 }
             }
+            .overlay(alignment: .bottom) {
+                Text("tap to continue")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(.bottom, 40)
+                    .opacity(readyToContinue ? 1 : 0)
+            }
             .background(Color("LaunchBackground"))
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if readyToContinue { goToNameEntry = true }
+            }
+            .navigationDestination(isPresented: $goToNameEntry) {
+                NameEntryView()
+                    .toolbar(.hidden, for: .navigationBar)
+            }
     }
 }
 
@@ -53,6 +72,7 @@ struct LandingView: View {
 /// intact) and reveals it left-to-right, one letter at a time, via a mask.
 private struct AnimatedWordmark: View {
     let text: String
+    var onComplete: () -> Void = {}
 
     @State private var revealed = 0
 
@@ -74,6 +94,7 @@ private struct AnimatedWordmark: View {
                     }
                     try? await Task.sleep(for: .milliseconds(340))
                 }
+                onComplete()
             }
     }
 }
