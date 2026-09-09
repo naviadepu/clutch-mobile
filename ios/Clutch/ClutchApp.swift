@@ -7,7 +7,9 @@ struct ClutchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            LandingView()
+            NavigationStack {
+                LandingView()
+            }
         }
     }
 }
