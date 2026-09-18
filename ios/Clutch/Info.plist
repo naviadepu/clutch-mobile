@@ -47,6 +47,9 @@
 	<array>
 		<string>PinyonScript-Regular.ttf</string>
 		<string>PlayfairDisplay-SemiBold.ttf</string>
+		<string>DotoRounded-Medium.ttf</string>
+		<string>Quicksand-Light.ttf</string>
+		<string>Quicksand-Regular.ttf</string>
 	</array>
 </dict>
 </plist>

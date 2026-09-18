@@ -43,20 +43,16 @@ struct GardenView: View {
         self.signature = signature
     }
 
-    /// The soft cream backdrop, slightly warmer at the bottom than the top —
-    /// sampled from the reference design.
-    private static let creamTop = Color(red: 0.867, green: 0.839, blue: 0.812)
-    private static let creamBottom = Color(red: 0.953, green: 0.886, blue: 0.878)
-
     /// The two-tone text palette used throughout: a near-black warm brown
     /// for anything primary/active, a muted taupe for secondary labels.
     private static let ink = Color(red: 0.29, green: 0.23, blue: 0.20)
     private static let mutedInk = Color(red: 0.61, green: 0.54, blue: 0.50)
 
+    @State private var selectedDockItem: DockItem = .garden
+
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Self.creamTop, Self.creamBottom], startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
+            AuraBackground()
 
             // ~1 inch of clearance below the stems, off the true screen edge,
             // plus room for the tab bar sitting on top of it.
@@ -80,7 +76,7 @@ struct GardenView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .padding(.top, 130)
+                    .padding(.top, 190)
                     .transition(.opacity)
                 } else {
                     startState
@@ -105,7 +101,7 @@ struct GardenView: View {
                     .transition(.opacity)
             }
 
-            tabBar
+            dock
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
         .onAppear {
@@ -120,129 +116,136 @@ struct GardenView: View {
         }
     }
 
-    /// Day badge on the leading side; the onboarding scribble (or fallback
-    /// wordmark) and cycle phase stacked on the trailing side.
+    /// The onboarding scribble framed in a dashed glass box on the left,
+    /// like the reference's side-strip frame; the wordmark on the right.
     private var topBar: some View {
-        HStack(alignment: .top, spacing: 12) {
-            dayBadge
-
+        HStack(alignment: .center) {
+            signatureBox
             Spacer()
-
-            VStack(alignment: .trailing, spacing: 6) {
-                Group {
-                    if let signature {
-                        Image(uiImage: signature)
-                            .resizable()
-                            .scaledToFit()
-                    } else {
-                        Text("Clutch")
-                            .font(.custom("PinyonScript-Regular", size: 48))
-                            .foregroundStyle(Self.ink)
-                    }
-                }
-                .frame(maxWidth: 250, maxHeight: 95, alignment: .topTrailing)
-
-                Text(model.phase.rawValue)
-                    .font(.system(size: 15, design: .serif).italic())
-                    .foregroundStyle(Self.mutedInk)
-            }
+            Text("Clutch")
+                .font(.custom("PinyonScript-Regular", size: 44))
+                .foregroundStyle(Self.ink)
+                .padding(.trailing, 6)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 20)
+        .padding(.top, 48)
     }
 
-    /// Circular "day N of the cycle" chip. There's no real cycle-start date
-    /// captured anywhere yet (see `GardenModel.phase`), so this shows a
-    /// placeholder rather than a fabricated real count.
-    private var dayBadge: some View {
-        VStack(spacing: 1) {
-            Text("1")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Self.ink)
-            Text("DAY")
-                .font(.system(size: 9, weight: .medium))
-                .tracking(1)
-                .foregroundStyle(Self.mutedInk)
-        }
-        .frame(width: 56, height: 56)
-        .background(Color(red: 0.988, green: 0.980, blue: 0.973), in: Circle())
-        .overlay(Circle().strokeBorder(Color(red: 0.859, green: 0.843, blue: 0.835), lineWidth: 1))
-    }
+    private var signatureBox: some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
 
-    /// A floating home / share / discover bar — a rounded, frosted pill
-    /// with a soft shadow, like the macOS Dock, rather than a flat strip
-    /// flush with the screen edge. Only "home" does anything real right
-    /// now — the other two are visual placeholders, not wired to any
-    /// destination yet.
-    private var tabBar: some View {
-        HStack(spacing: 0) {
-            tabItem(icon: "house.fill", label: "home", selected: true)
-            tabItem(icon: "sparkles", label: "discover", selected: false)
-            tabItem(icon: "square.and.arrow.up", label: "share", selected: false)
-        }
-        .padding(.vertical, 14)
-        .padding(.horizontal, 8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(.white.opacity(0.5), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
-        .padding(.horizontal, 28)
-        .padding(.bottom, 34)
-    }
-
-    private func tabItem(icon: String, label: String, selected: Bool) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 21))
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
-        }
-        .foregroundStyle(selected ? Color(red: 0.875, green: 0.569, blue: 0.651) : Self.mutedInk)
-        .frame(maxWidth: .infinity)
-    }
-
-    /// The idle screen shown before today's deck begins: a small glow orb,
-    /// a prompt, and a "Start today" button that reveals the swipe deck.
-    private var startState: some View {
-        VStack(spacing: 34) {
-            Image("blob")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 190, height: 190)
-                // The source photo is a soft-edged square, not a circle —
-                // this radial mask fades it to fully transparent well
-                // before its own edges, so it blends into any background
-                // instead of showing a square seam.
-                .mask {
-                    RadialGradient(
-                        colors: [.white, .white, .clear],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 95
-                    )
+        return VStack(alignment: .leading, spacing: 6) {
+            Group {
+                if let signature {
+                    Image(uiImage: signature)
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    Text("your name")
+                        .font(.custom("PinyonScript-Regular", size: 34))
+                        .foregroundStyle(Self.mutedInk)
+                        .minimumScaleFactor(0.5)
                 }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+
+            // No real cycle-start date is captured yet (see
+            // `GardenModel.phase`), so the day is a placeholder.
+            Text("DAY 1")
+                .font(.custom("HelveticaNeue", size: 9))
+                .tracking(1.4)
+                .foregroundStyle(.black.opacity(0.5))
+        }
+        .padding(12)
+        .frame(width: 168, height: 104)
+        .background(.ultraThinMaterial, in: shape)
+        .background(.white.opacity(0.25), in: shape)
+        .overlay(
+            shape.strokeBorder(
+                .black.opacity(0.35),
+                style: StrokeStyle(lineWidth: 0.6, dash: [2, 2])
+            )
+        )
+    }
+
+    // MARK: - Dock
+
+    /// A macOS-style dock: a frosted glass shelf of aura tiles (the
+    /// reference's side-strip swatches), a hairline separator before
+    /// "share", a dot under the active item, and a magnify-and-lift on tap.
+    private var dock: some View {
+        let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+
+        return HStack(alignment: .bottom, spacing: 12) {
+            ForEach(DockItem.primary) { item in
+                dockButton(item)
+            }
+
+            Rectangle()
+                .fill(.black.opacity(0.18))
+                .frame(width: 0.6, height: 44)
+                .padding(.bottom, 12)
+
+            dockButton(.share)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
+        .background(.ultraThinMaterial, in: shape)
+        .background(.white.opacity(0.3), in: shape)
+        .overlay(
+            shape.strokeBorder(
+                LinearGradient(
+                    colors: [.white.opacity(0.95), .white.opacity(0.35)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ),
+                lineWidth: 0.8
+            )
+        )
+        .shadow(color: Color(hex: 0xB0587F).opacity(0.18), radius: 18, y: 8)
+        .padding(.bottom, 26)
+    }
+
+    private func dockButton(_ item: DockItem) -> some View {
+        let isSelected = selectedDockItem == item
+
+        return Button {
+            if item == .share {
+                if model.hasBloomed { shareGarden() }
+            } else {
+                selectedDockItem = item
+            }
+        } label: {
+            VStack(spacing: 5) {
+                AuraTile(palette: item.palette, symbol: item.symbol)
+                    .frame(width: 48, height: 48)
+
+                Circle()
+                    .fill(.black.opacity(isSelected ? 0.55 : 0))
+                    .frame(width: 4, height: 4)
+            }
+        }
+        .buttonStyle(DockButtonStyle())
+        .accessibilityLabel(item.title)
+    }
+
+    /// The idle screen shown before today's deck begins: a quiet prompt
+    /// over the glass orb that starts the day, sitting at the aura's core.
+    private var startState: some View {
+        VStack(spacing: 26) {
             Text("Log how you feel and your garden fills.")
                 .font(.system(size: 17, design: .serif).italic())
                 .foregroundStyle(Self.ink)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 50)
 
-            Button {
+            StartOrb {
                 withAnimation(.easeInOut(duration: 0.4)) { didStart = true }
-            } label: {
-                Text("Start today")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 34)
-                    .padding(.vertical, 15)
-                    .background(Self.ink, in: Capsule())
             }
-            .buttonStyle(.plain)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .padding(.top, 150)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .offset(y: 30)
     }
 
     private func handleCommit(keep: Bool, symptom: Symptom) {
@@ -742,6 +745,50 @@ private struct PolaroidCard: View {
             .rotationEffect(.degrees(2.5))
             .offset(x: 8, y: -8)
         }
+    }
+}
+
+// MARK: - Dock items
+
+/// Only `garden` and `share` do anything real yet; the rest are visual
+/// placeholders not wired to any destination.
+private enum DockItem: String, CaseIterable, Identifiable {
+    case garden, cycle, journal, discover, share
+
+    static let primary: [DockItem] = [.garden, .cycle, .journal, .discover]
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+
+    var symbol: String {
+        switch self {
+        case .garden: "leaf"
+        case .cycle: "moon"
+        case .journal: "book.closed"
+        case .discover: "sparkles"
+        case .share: "square.and.arrow.up"
+        }
+    }
+
+    /// Core → rim colors, sampled from the reference strip's swatches.
+    var palette: [Color] {
+        switch self {
+        case .garden: [Color(hex: 0xFFFBE8), Color(hex: 0xD4FDE0), Color(hex: 0xF5DFF9)]
+        case .cycle: [Color(hex: 0xFFFFFF), Color(hex: 0xF5DFF9), Color(hex: 0xE9D5F7)]
+        case .journal: [Color(hex: 0xFFF6D8), Color(hex: 0xFDDEDF), Color(hex: 0xE9E7F3)]
+        case .discover: [Color(hex: 0xFFFFFF), Color(hex: 0xE9D5F7), Color(hex: 0xFEE4FE)]
+        case .share: [Color(hex: 0xFFFDEE), Color(hex: 0xFDE6D0), Color(hex: 0xF6D5E6)]
+        }
+    }
+}
+
+/// The macOS Dock's press feel: the tile magnifies and lifts.
+private struct DockButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 1.18 : 1, anchor: .bottom)
+            .offset(y: configuration.isPressed ? -6 : 0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 
