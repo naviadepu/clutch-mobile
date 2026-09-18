@@ -1,5 +1,6 @@
 import SwiftUI
 import PencilKit
+import UIKit
 
 /// Second screen: the soft pink backdrop *is* the canvas. We ask for the
 /// person's name and let them write straight onto it, with a vertical rail
@@ -9,6 +10,7 @@ struct NameEntryView: View {
     @State private var tool: ScribbleTool = .marker
     @State private var ink: Color = Self.inks[0]
     @State private var goToAge = false
+    @State private var signature: UIImage?
 
     private static let inks: [Color] = [
         .matcha,
@@ -59,6 +61,7 @@ struct NameEntryView: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 Button {
+                    signature = renderedSignature()
                     goToAge = true
                 } label: {
                     Image(systemName: "arrow.right")
@@ -71,9 +74,21 @@ struct NameEntryView: View {
                 .padding(24)
             }
             .navigationDestination(isPresented: $goToAge) {
-                AgeEntryView()
+                AgeEntryView(signature: signature)
                     .toolbar(.hidden, for: .navigationBar)
             }
+    }
+
+    /// Crops the drawing down to just its ink (transparent everywhere else),
+    /// with a little breathing room around it, so it can be pasted elsewhere
+    /// as a small signature — filling its display space consistently no
+    /// matter how big or small they signed. `nil` if nothing was drawn.
+    private func renderedSignature() -> UIImage? {
+        let drawing = canvasView.drawing
+        guard !drawing.bounds.isEmpty else { return nil }
+        let padding: CGFloat = 14
+        let bounds = drawing.bounds.insetBy(dx: -padding, dy: -padding)
+        return drawing.image(from: bounds, scale: UIScreen.main.scale)
     }
 
     private var toolRail: some View {
