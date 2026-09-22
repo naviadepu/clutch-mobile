@@ -122,10 +122,15 @@ struct GardenView: View {
         HStack(alignment: .center) {
             signatureBox
             Spacer()
-            Text("Clutch")
-                .font(.custom("PinyonScript-Regular", size: 44))
-                .foregroundStyle(Self.ink)
-                .padding(.trailing, 6)
+            VStack(alignment: .trailing, spacing: 0) {
+                Text("Clutch")
+                    .font(.custom("PinyonScript-Regular", size: 44))
+                    .foregroundStyle(Self.ink)
+                Text("your cycle, in bloom")
+                    .font(.system(size: 14, design: .serif).italic())
+                    .foregroundStyle(Self.ink.opacity(0.7))
+            }
+            .padding(.trailing, 6)
         }
         .padding(.horizontal, 20)
         .padding(.top, 48)
@@ -233,19 +238,11 @@ struct GardenView: View {
     /// The idle screen shown before today's deck begins: a quiet prompt
     /// over the glass orb that starts the day, sitting at the aura's core.
     private var startState: some View {
-        VStack(spacing: 26) {
-            Text("Log how you feel and your garden fills.")
-                .font(.system(size: 17, design: .serif).italic())
-                .foregroundStyle(Self.ink)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 50)
-
-            StartOrb {
-                withAnimation(.easeInOut(duration: 0.4)) { didStart = true }
-            }
+        StartOrb(text: "log how you feel  \u{2726}  your garden fills  \u{2726}  tap to begin  \u{2726}  ") {
+            withAnimation(.easeInOut(duration: 0.4)) { didStart = true }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .offset(y: 30)
+        .offset(y: 20)
     }
 
     private func handleCommit(keep: Bool, symptom: Symptom) {
