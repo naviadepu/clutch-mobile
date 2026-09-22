@@ -38,6 +38,14 @@
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Clutch uses your location only to show the nearest free period product spots first. It stays on your phone.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Clutch saves your bouquet to Photos when you tap Save.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>instagram-stories</string>
+	</array>
+	<key>FacebookAppID</key>
+	<string></string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

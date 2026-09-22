@@ -8,7 +8,7 @@ import UIKit
 /// Tapping a card opens its full details.
 struct RequestView: View {
     /// Injectable so previews and screenshots can stand in for the
-    /// (deliberately empty) bundled list.
+    /// bundled list.
     var locations: [ProductLocation] = ProductLocationStore.all
 
     @Environment(\.dismiss) private var dismiss
@@ -86,7 +86,7 @@ struct RequestView: View {
         let pairs = stride(from: 0, to: sorted.count, by: 2).map {
             Array(sorted[$0..<min($0 + 2, sorted.count)])
         }
-        return Grid(horizontalSpacing: 16, verticalSpacing: 20) {
+        return Grid(horizontalSpacing: 16, verticalSpacing: 28) {
             ForEach(pairs, id: \.first?.id) { pair in
                 GridRow {
                     ForEach(pair) { card(for: $0) }
@@ -267,13 +267,38 @@ private enum Serif {
 
 // MARK: - Card
 
-/// One spot on a cream card: stocked or not, the name, where inside, a
-/// hairline, then what's there and when it's open.
+/// One spot as a save-the-date: a cream card slipping out of a
+/// translucent pink envelope. The card carries the status, name and
+/// directions; what's stocked and when it's open are printed on the
+/// envelope's front pocket.
 private struct SpotCard: View {
     let location: ProductLocation
     let distance: String?
 
+    /// How far the card's lower edge sits down inside the pocket.
+    private static let tuck: CGFloat = 46
+
     var body: some View {
+        VStack(spacing: -Self.tuck) {
+            card
+                .padding(.horizontal, 10)
+                .rotationEffect(.degrees(-1.5))
+                .frame(maxHeight: .infinity, alignment: .top)
+
+            pocket
+        }
+        .padding(.top, 12)
+        .background(alignment: .bottom) { EnvelopeBack().padding(.top, 34) }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minHeight: 256)
+        .compositingGroup()
+        .shadow(color: Envelope.shadow, radius: 24, y: 14)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Shows details")
+    }
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 8) {
                 Image(systemName: location.placeSymbol)
@@ -288,7 +313,7 @@ private struct SpotCard: View {
                 .foregroundStyle(Paper.ink)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 22)
+                .padding(.top, 18)
 
             Text(location.directions)
                 .font(.custom("DMSans-Light", size: 12))
@@ -296,44 +321,117 @@ private struct SpotCard: View {
                 .lineSpacing(2)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
+                .padding(.top, 6)
 
-            Spacer(minLength: 20)
-
-            Hairline()
-
-            VStack(alignment: .leading, spacing: 8) {
-                if !location.items.isEmpty {
-                    ItemLabels(items: location.items)
-                        .foregroundStyle(Paper.ink)
-                }
-                // Side by side when there's room, stacked in a narrow card.
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 0) {
-                        SmallLabel(location.hours ?? "Hours unknown").fixedSize()
-                        if let distance {
-                            SmallLabel("  ·  \(distance)").fixedSize()
-                        }
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        SmallLabel(location.hours ?? "Hours unknown")
-                            .minimumScaleFactor(0.8)
-                        if let distance {
-                            SmallLabel(distance)
-                        }
-                    }
-                }
-                .foregroundStyle(Paper.soft)
-            }
-            .padding(.top, 14)
+            Spacer(minLength: 0)
         }
-        .padding(20)
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        // Room below the text for the part that sits inside the pocket.
+        .padding(.bottom, Self.tuck + 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .frame(minHeight: 236)
-        .paperCard()
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Shows details")
+        .paperCard(radius: 6)
+    }
+
+    private var pocket: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            if !location.items.isEmpty {
+                ItemLabels(items: location.items)
+                    .foregroundStyle(Envelope.ink)
+            }
+            // Side by side when there's room, stacked in a narrow card.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 0) {
+                    SmallLabel(location.hours ?? "Hours unknown").fixedSize()
+                    if let distance {
+                        SmallLabel("  ·  \(distance)").fixedSize()
+                    }
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    SmallLabel(location.hours ?? "Hours unknown")
+                        .minimumScaleFactor(0.8)
+                    if let distance {
+                        SmallLabel(distance)
+                    }
+                }
+            }
+            .foregroundStyle(Envelope.ink.opacity(0.75))
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, EnvelopePocket.notch + 14)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            EnvelopePocket()
+                .fill(Envelope.front)
+                .overlay {
+                    // A sheen across the vellum, brightest at the flap edges.
+                    EnvelopePocket()
+                        .fill(LinearGradient(
+                            colors: [.white.opacity(0.35), .white.opacity(0.05), .clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ))
+                }
+                .overlay { EnvelopePocket().stroke(.white.opacity(0.55), lineWidth: 0.6) }
+        }
+    }
+}
+
+// MARK: - Envelope
+
+/// The translucent pink vellum of the reference envelope.
+private enum Envelope {
+    static let back = Color(hex: 0xF3A9C0).opacity(0.55)
+    static let front = Color(hex: 0xF5B3C7).opacity(0.82)
+    static let ink = Color(hex: 0x5A2E3C)
+    static let shadow = Color(hex: 0x8A3F58).opacity(0.14)
+}
+
+/// The inside of the envelope with its flap open behind the card.
+private struct EnvelopeBack: View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Envelope.back)
+            OpenFlap()
+                .fill(Envelope.back)
+                .frame(height: 34)
+                .offset(y: -34)
+        }
+    }
+}
+
+/// The open flap: a soft triangle standing up off the back's top edge.
+private struct OpenFlap: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + 4, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - 4, y: rect.maxY),
+            control: CGPoint(x: rect.midX + rect.width * 0.12, y: rect.minY - rect.height * 0.9)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// The front pocket: the two side flaps meet in a shallow V at the top.
+private struct EnvelopePocket: Shape {
+    static let notch: CGFloat = 22
+
+    func path(in rect: CGRect) -> Path {
+        let r: CGFloat = 10
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.minY + Self.notch))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX - r, y: rect.maxY), control: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+        path.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - r), control: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 

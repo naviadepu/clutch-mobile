@@ -1,10 +1,10 @@
 # product-locations.json
 
 Every spot on the Request screen — "free products near you" — comes from
-this file. It ships **empty on purpose**: the old Next.js app's pins had
-conflicting coordinates (two buildings sharing one point), no items on half
-of them, and nothing verified by a person. Add spots here as you check them
-yourself.
+this file. It only lists spots someone has confirmed: the old Next.js app's
+pins had conflicting coordinates (two buildings sharing one point), no items
+on half of them, and nothing verified by a person, so none of those came
+across. Add spots here as you check them yourself.
 
 The app reads it once at launch, so a spot appears as soon as it's in the
 list. Dates are plain `yyyy-MM-dd` so they stay easy to edit by hand.

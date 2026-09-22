@@ -3,10 +3,10 @@ import Foundation
 
 /// A place near campus that gives out free period products.
 ///
-/// The shipped list starts empty on purpose: the old web app's pins had
-/// conflicting coordinates, missing items and nothing verified, so none of
-/// it was worth shipping. Fill `product-locations.json` in with spots
-/// checked in person — its README describes every field.
+/// The shipped list only holds spots someone has confirmed: the old web
+/// app's pins had conflicting coordinates, missing items and nothing
+/// verified, so none of it came across. Add to `product-locations.json` as
+/// spots are checked in person — its README describes every field.
 struct ProductLocation: Identifiable, Codable, Hashable {
     let id: String
     /// The building, e.g. "Sparks Hall".

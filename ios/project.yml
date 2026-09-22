@@ -52,12 +52,26 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.clutch.mobile.tests
         GENERATE_INFOPLIST_FILE: true
 
+  ClutchUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: ClutchUITests
+    dependencies:
+      - target: Clutch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.clutch.mobile.uitests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: Clutch
+
 schemes:
   Clutch:
     build:
       targets:
         Clutch: all
         ClutchTests: [test]
+        ClutchUITests: [test]
     run:
       config: Debug
       environmentVariables:
@@ -66,3 +80,4 @@ schemes:
       config: Debug
       targets:
         - ClutchTests
+        - ClutchUITests

@@ -219,8 +219,15 @@ private struct AuraGlass<S: InsettableShape>: View {
 }
 
 extension View {
+    /// The glass is decoration only. Its blurred artwork is a full-page
+    /// image offset under the shape, and `clipShape` hides the overflow but
+    /// doesn't stop it catching touches — left hit-testable, the "next"
+    /// arrow's glass swallowed taps and drags meant for the calendar and
+    /// sliders. So the glass takes no touches, and the view is hit only
+    /// within its own shape.
     func auraGlass<S: InsettableShape>(_ shape: S, blur: CGFloat = 22) -> some View {
-        background { AuraGlass(shape: shape, blur: blur) }
+        background { AuraGlass(shape: shape, blur: blur).allowsHitTesting(false) }
+            .contentShape(shape)
     }
 }
 

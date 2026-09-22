@@ -5,8 +5,10 @@ import XCTest
 final class ProductLocationTests: XCTestCase {
     /// The hackathon pins were dropped on purpose — conflicting
     /// coordinates, missing items, nothing verified.
-    func testShippedListStartsEmpty() {
-        XCTAssertTrue(ProductLocationStore.all.isEmpty)
+    func testShippedListDecodesWithUniqueIDs() {
+        let ids = ProductLocationStore.all.map(\.id)
+        XCTAssertFalse(ids.isEmpty)
+        XCTAssertEqual(Set(ids).count, ids.count)
     }
 
     func testEveryFieldDecodesFromJSON() throws {

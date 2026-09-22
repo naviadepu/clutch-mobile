@@ -1,18 +1,5 @@
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
-
-/// `UIImage` has no built-in `Transferable` conformance — `ShareLink` needs
-/// this thin wrapper to export the snapshot as JPEG data.
-struct ShareableGardenImage: Transferable {
-    let image: UIImage
-
-    static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(exportedContentType: .jpeg) { shareable in
-            shareable.image.jpegData(compressionQuality: 0.92) ?? Data()
-        }
-    }
-}
 
 /// The Garden screen: one card at a time as a swipeable deck — right to
 /// log, left to skip. Either direction adds a gradient tulip to the day's
@@ -30,6 +17,7 @@ struct GardenView: View {
     @State private var shareCaption = ""
     @State private var showCollection = false
     @State private var showRequest = false
+    @State private var showDetails = false
     @State private var collection: [CollectedBouquet] = []
     /// Once the deck is done the bouquet grows to full size in the middle
     /// of the screen; while logging it sits smaller, low, under the cards.
@@ -54,7 +42,14 @@ struct GardenView: View {
 
             flowerBed
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: bouquetCentered ? .center : .bottom)
-                .padding(.bottom, bouquetCentered ? 60 : 80)
+                .padding(.bottom, bouquetCentered ? 150 : 80)
+
+            if bouquetCentered {
+                afterBloom
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 118)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
 
             Group {
                 if didStart {
@@ -127,6 +122,10 @@ struct GardenView: View {
         }
         .sheet(isPresented: $showRequest) {
             RequestView()
+        }
+        .navigationDestination(isPresented: $showDetails) {
+            YouView()
+                .toolbar(.hidden, for: .navigationBar)
         }
         .onAppear {
             collection = BouquetCollection.load()
@@ -205,7 +204,7 @@ struct GardenView: View {
 
     /// A macOS-style dock: a frosted glass shelf of aura tiles (the
     /// reference's side-strip swatches), a hairline separator before
-    /// "share", a dot under the active item, and a magnify-and-lift on tap.
+    /// "share", and a dot under the active item.
     private var dock: some View {
         let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
 
@@ -267,6 +266,81 @@ struct GardenView: View {
         .accessibilityLabel(item.title)
     }
 
+    /// Earlier bouquets, newest first — today's is the big one above.
+    private var recentBouquets: [CollectedBouquet] {
+        let today = Calendar.current.startOfDay(for: .now)
+        return Array(collection.filter { Calendar.current.startOfDay(for: $0.day) != today }.prefix(4))
+    }
+
+    /// Under the finished bouquet: the ones before it, then the way on to
+    /// everything the app knows about her.
+    private var afterBloom: some View {
+        VStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Recent bouquets")
+                        .font(.system(size: 13, design: .serif).italic())
+                        .foregroundStyle(Self.ink.opacity(0.8))
+                    Spacer()
+                    if !recentBouquets.isEmpty {
+                        Button("See all") { showCollection = true }
+                            .font(.custom("HelveticaNeue", size: 12))
+                            .foregroundStyle(Self.mutedInk)
+                    }
+                }
+
+                if recentBouquets.isEmpty {
+                    Text("Your past bouquets will gather here, one for each day you check in.")
+                        .font(.system(size: 12, design: .serif).italic())
+                        .foregroundStyle(Self.mutedInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    HStack(spacing: 10) {
+                        ForEach(recentBouquets) { bouquet in
+                            Button { showCollection = true } label: {
+                                miniBouquet(bouquet)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Bouquet from \(bouquet.day.formatted(date: .long, time: .omitted))")
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+
+            Button { showDetails = true } label: {
+                HStack(spacing: 8) {
+                    Text("See your details")
+                        .font(.custom("HelveticaNeue-Medium", size: 15))
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .foregroundStyle(Color(hex: 0xFDF6F2))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Self.ink, in: Capsule())
+                .shadow(color: Self.ink.opacity(0.25), radius: 12, y: 6)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 28)
+    }
+
+    private func miniBouquet(_ bouquet: CollectedBouquet) -> some View {
+        VStack(spacing: 4) {
+            Bouquet(flowers: bouquet.flowers, reduceMotion: true, animatesIn: false, signature: signature)
+                .scaleEffect(0.11, anchor: .bottom)
+                .frame(width: 56, height: 62, alignment: .bottom)
+                .clipped()
+            Text(bouquet.day.formatted(.dateTime.month(.abbreviated).day()))
+                .font(.custom("HelveticaNeue", size: 9))
+                .foregroundStyle(Self.ink.opacity(0.7))
+        }
+        .padding(6)
+        .background(.white.opacity(0.45), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.8), lineWidth: 0.6))
+    }
+
     /// The idle screen shown before today's deck begins: the glass orb that
     /// starts the day, with the prompt written around it.
     private var startState: some View {
@@ -302,7 +376,7 @@ struct GardenView: View {
     }
 
     private var flowerBed: some View {
-        let scale: CGFloat = bouquetCentered ? 1 : 0.55
+        let scale: CGFloat = bouquetCentered ? 0.74 : 0.55
         return Bouquet(flowers: model.flowers, reduceMotion: reduceMotion, signature: signature)
             .scaleEffect(scale, anchor: .bottom)
             .frame(width: Bouquet.size.width, height: Bouquet.size.height * scale, alignment: .bottom)
@@ -489,8 +563,8 @@ private struct SwipeDeck: View {
 // MARK: - Share
 
 /// The share card: a snapshot of the bouquet in a white Polaroid frame,
-/// tilted like it was just tossed down, with a real `ShareLink` for the
-/// image underneath.
+/// tilted like it was just tossed down, with one-tap share targets
+/// underneath.
 struct PolaroidCard: View {
     let flowers: [PlantedFlower]
     /// When there is one, the card offers to put her name on the bouquet.
@@ -500,6 +574,7 @@ struct PolaroidCard: View {
 
     @State private var includeName = true
     @State private var image: UIImage?
+    @State private var saved = false
 
     var body: some View {
         VStack(spacing: 14) {
@@ -533,52 +608,92 @@ struct PolaroidCard: View {
             }
 
             if let image {
-                ShareLink(
-                    item: ShareableGardenImage(image: image),
-                    preview: SharePreview("My Clutch bouquet", image: Image(uiImage: image))
-                ) {
-                    Text("Share")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color(red: 0.29, green: 0.23, blue: 0.20))
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 11)
-                        .background(Color.strawberry, in: Capsule())
-                }
-                .padding(.top, 2)
+                shareTargets(for: image)
+                    .padding(.top, 4)
             }
         }
         .padding(16)
         .padding(.bottom, 12)
         .background(.white)
+        // Inside the frame, over the photo's corner, so it turns with the card.
+        .overlay(alignment: .topTrailing) {
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Self.ink)
+                    .frame(width: 28, height: 28)
+                    .background(.white.opacity(0.85), in: Circle())
+                    .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+            }
+            .padding(24)
+            .accessibilityLabel("Close")
+        }
         .onAppear(perform: render)
         .onChange(of: includeName) { render() }
         .rotationEffect(.degrees(-2.5))
         .shadow(color: .black.opacity(0.3), radius: 26, y: 16)
-        .overlay(alignment: .topTrailing) {
-            Button(action: onClose) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 26))
-                    .foregroundStyle(.white, .black.opacity(0.45))
+    }
+
+    private static let ink = Color(red: 0.29, green: 0.23, blue: 0.20)
+
+    /// One tap to each place she's likely to post it. Story and Messages
+    /// fall back to the share sheet when they can't open directly; TikTok
+    /// always goes through it, since that's how TikTok takes images.
+    private func shareTargets(for image: UIImage) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            shareButton("Story", symbol: "camera") {
+                if !BouquetSharing.shareToInstagramStory(image) { BouquetSharing.presentShareSheet(image, text: shareText) }
             }
-            .padding(4)
-            .rotationEffect(.degrees(2.5))
-            .offset(x: 8, y: -8)
+            shareButton("TikTok", symbol: "music.note") {
+                BouquetSharing.presentShareSheet(image, text: shareText)
+            }
+            shareButton("iMessage", symbol: "message") {
+                if !BouquetSharing.shareToMessages(image, body: shareText) { BouquetSharing.presentShareSheet(image, text: shareText) }
+            }
+            shareButton(saved ? "Saved" : "Save", symbol: saved ? "checkmark" : "arrow.down.to.line") {
+                BouquetSharing.saveToPhotos(image) { ok in
+                    withAnimation(.easeInOut(duration: 0.2)) { saved = ok }
+                }
+            }
+            shareButton("More", symbol: "ellipsis") {
+                BouquetSharing.presentShareSheet(image, text: shareText)
+            }
         }
     }
 
+    private var shareText: String { "\(caption) \u{2014} my Clutch bouquet" }
+
+    private func shareButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(Self.ink)
+                    .frame(width: 44, height: 44)
+                    .background(Color.strawberry, in: Circle())
+                Text(title)
+                    .font(.system(size: 10, design: .serif).italic())
+                    .foregroundStyle(Self.ink.opacity(0.8))
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title == "Story" ? "Share to Instagram story" : title)
+    }
+
     private func render() {
+        saved = false
         image = BouquetSnapshot.image(of: flowers, signature: includeName ? signature : nil)
     }
 }
 
 // MARK: - Dock items
 
-/// `garden`, `request`, `bouquets` and `share` are wired up; `cycle` and
-/// `discover` are visual placeholders not wired to any destination yet.
+/// `garden`, `request`, `bouquets` and `share` are wired up; `cycle` is a
+/// visual placeholder not wired to any destination yet.
 private enum DockItem: String, CaseIterable, Identifiable {
-    case garden, cycle, request, bouquets, discover, share
+    case garden, cycle, request, bouquets, share
 
-    static let primary: [DockItem] = [.garden, .cycle, .request, .bouquets, .discover]
+    static let primary: [DockItem] = [.garden, .cycle, .request, .bouquets]
 
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
@@ -589,7 +704,6 @@ private enum DockItem: String, CaseIterable, Identifiable {
         case .cycle: "moon"
         case .request: "hand.raised"
         case .bouquets: "rectangle.stack"
-        case .discover: "sparkles"
         case .share: "square.and.arrow.up"
         }
     }
@@ -601,7 +715,6 @@ private enum DockItem: String, CaseIterable, Identifiable {
         case .cycle: [Color(hex: 0xFFFFFF), Color(hex: 0xF5DFF9), Color(hex: 0xE9D5F7)]
         case .request: [Color(hex: 0xFFFBF0), Color(hex: 0xFDDCE6), Color(hex: 0xE7DCF6)]
         case .bouquets: [Color(hex: 0xFFF6D8), Color(hex: 0xFDDEDF), Color(hex: 0xE9E7F3)]
-        case .discover: [Color(hex: 0xFFFFFF), Color(hex: 0xE9D5F7), Color(hex: 0xFEE4FE)]
         case .share: [Color(hex: 0xFFFDEE), Color(hex: 0xFDE6D0), Color(hex: 0xF6D5E6)]
         }
     }
@@ -611,9 +724,9 @@ private enum DockItem: String, CaseIterable, Identifiable {
 private struct DockButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 1.18 : 1, anchor: .bottom)
-            .offset(y: configuration.isPressed ? -6 : 0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
+            // Stays in place — just dims a touch while pressed.
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 
