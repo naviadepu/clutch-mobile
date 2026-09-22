@@ -8,7 +8,14 @@ struct DayLog: Codable {
     let date: Date
     var symptoms: [String] = []
     var skipped: [String] = []
+    /// Set when the period card is logged; `nil` on days without a period.
+    var flow: Flow? = nil
     let seed: Int
+
+    var answeredCount: Int { symptoms.count + skipped.count }
+
+    /// Every card in the deck answered — the day's bouquet is collected.
+    var isComplete: Bool { answeredCount >= Symptom.catalog.count }
 }
 
 /// A tiny local store for `DayLog`s, keyed by calendar day. This is a
@@ -18,8 +25,20 @@ struct DayLog: Codable {
 enum DayLogStore {
     private static let defaults = UserDefaults.standard
 
+    private static let keyPrefix = "garden.log."
+
     private static func key(for date: Date) -> String {
-        "garden.log." + dayKey(for: date)
+        keyPrefix + dayKey(for: date)
+    }
+
+    /// Every stored day, oldest first.
+    static func allLogs() -> [DayLog] {
+        defaults.dictionaryRepresentation().keys
+            .filter { $0.hasPrefix(keyPrefix) }
+            .compactMap { key in
+                defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(DayLog.self, from: $0) }
+            }
+            .sorted { $0.date < $1.date }
     }
 
     static func dayKey(for date: Date) -> String {

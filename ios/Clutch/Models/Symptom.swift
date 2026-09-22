@@ -1,60 +1,35 @@
 import Foundation
 
-/// One loggable symptom card in the Garden deck.
+/// One card in the Garden deck. `label` is the short word or two spelled
+/// out on the card's crossword; `question` is what the card asks.
 struct Symptom: Identifiable, Hashable, Codable {
     let id: String
     let label: String
+    let question: String
+
+    /// The period card: swiping right asks for flow, and logging it pins
+    /// down the real cycle start date.
+    static let periodID = "period"
+
+    var asksForFlow: Bool { id == Self.periodID }
+}
+
+/// How heavy the period is, picked after swiping right on the period card.
+enum Flow: String, Codable, CaseIterable, Identifiable {
+    case light, medium, heavy
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
 }
 
 extension Symptom {
-    /// The full catalog the Garden deck draws from. Order here is only the
-    /// fallback tier — see `rankedDeck` for how the deck is actually ordered.
+    /// Today's deck, in order: the period card first (the most valuable
+    /// answer for prediction), then the four mood check-ins.
     static let catalog: [Symptom] = [
-        Symptom(id: "cramps", label: "cramps"),
-        Symptom(id: "bloated", label: "bloated"),
-        Symptom(id: "tired", label: "tired"),
-        Symptom(id: "anxious", label: "anxious"),
-        Symptom(id: "headache", label: "headache"),
-        Symptom(id: "tender", label: "tender breasts"),
-        Symptom(id: "acne", label: "acne"),
-        Symptom(id: "cravings", label: "cravings"),
-        Symptom(id: "moody", label: "mood swings"),
-        Symptom(id: "slept-well", label: "slept well"),
+        Symptom(id: periodID, label: "period", question: "Is your period happening today?"),
+        Symptom(id: "low", label: "feeling low", question: "Feeling low or down today?"),
+        Symptom(id: "anxious", label: "anxious", question: "Anxious or on edge today?"),
+        Symptom(id: "moody", label: "mood swings", question: "Did your mood swing around today?"),
+        Symptom(id: "irritable", label: "irritable", question: "Snappy or irritable today?"),
     ]
-}
-
-/// Where the user is in their cycle, used to bias which symptoms surface
-/// first in the deck.
-enum CyclePhase: String, Codable {
-    case menstrual, follicular, ovulation, luteal
-
-    /// Symptom ids commonly reported during this phase, most-likely first.
-    var commonSymptomIDs: [String] {
-        switch self {
-        case .menstrual: ["cramps", "tired", "bloated", "headache"]
-        case .follicular: ["slept-well", "cravings"]
-        case .ovulation: ["tender", "cravings"]
-        case .luteal: ["moody", "bloated", "anxious", "acne"]
-        }
-    }
-}
-
-/// Builds the deck order per the brief: yesterday's logged symptoms first,
-/// then symptoms common for the current phase, then everything else —
-/// so the deck never opens with a run of misses.
-func rankedDeck(catalog: [Symptom], yesterday: [String], phase: CyclePhase) -> [Symptom] {
-    var seen = Set<String>()
-    var ordered: [Symptom] = []
-
-    func add(_ id: String) {
-        guard !seen.contains(id), let symptom = catalog.first(where: { $0.id == id }) else { return }
-        seen.insert(id)
-        ordered.append(symptom)
-    }
-
-    yesterday.forEach(add)
-    phase.commonSymptomIDs.forEach(add)
-    catalog.forEach { add($0.id) }
-
-    return ordered
 }

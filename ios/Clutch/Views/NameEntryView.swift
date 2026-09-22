@@ -62,6 +62,7 @@ struct NameEntryView: View {
             .overlay(alignment: .bottomTrailing) {
                 Button {
                     signature = renderedSignature()
+                    SignatureStore.save(signature)
                     goToAge = true
                 } label: {
                     Image(systemName: "arrow.right")

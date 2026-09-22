@@ -1,39 +1,53 @@
 import SwiftUI
 
-/// The opening screen's moving pink footage with the "Creativity Aura"
-/// glow laid over it: a cream core and blush ring (sampled from the aura
-/// reference) that shade into the video's own rose and lilac and then fade
-/// out, so the footage keeps moving around the edges.
+/// The Garden's page: a soft pink gradient behind the bouquet.
 struct AuraBackground: View {
+    var body: some View {
+        BlushGradient()
+            .ignoresSafeArea()
+    }
+}
+
+/// A very pale blush glow in the middle, where the bouquet stands, deepening
+/// to warmer rose toward the edges and the bottom, with a whisper of grain
+/// that also keeps the gradient from banding. Shared by the Garden and the
+/// bouquet snapshots, so shares match the screen.
+struct BlushGradient: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Color(hex: 0xE6A3C0)
-
-                LoopingVideoPlayer(resourceName: "background-1", resourceExtension: "mp4")
+                Color(hex: 0xE8A9BA)
 
                 EllipticalGradient(
                     stops: [
-                        .init(color: Color(hex: 0xFFFDEE), location: 0.00),
-                        .init(color: Color(hex: 0xFFF6F0), location: 0.14),
-                        .init(color: Color(hex: 0xFEE4F6).opacity(0.95), location: 0.34),
-                        .init(color: Color(hex: 0xF7CDE8).opacity(0.75), location: 0.52),
-                        .init(color: Color(hex: 0xEFB8D8).opacity(0.35), location: 0.72),
-                        .init(color: Color(hex: 0xEFB8D8).opacity(0), location: 1.00),
+                        .init(color: Color(hex: 0xFDF1F3), location: 0.0),
+                        .init(color: Color(hex: 0xFAE3E9), location: 0.22),
+                        .init(color: Color(hex: 0xF5D0DA), location: 0.45),
+                        .init(color: Color(hex: 0xEFBDCA), location: 0.7),
+                        .init(color: Color(hex: 0xE8A9BA), location: 1.0),
                     ],
-                    center: .center
+                    center: UnitPoint(x: 0.5, y: 0.46),
+                    startRadiusFraction: 0,
+                    endRadiusFraction: 0.78
                 )
-                .frame(width: geo.size.width * 1.1, height: geo.size.height * 0.9)
-                .offset(y: geo.size.height * 0.04)
-                .blur(radius: 24)
+                .frame(width: geo.size.width * 1.35, height: geo.size.height * 1.1)
+                .position(x: geo.size.width / 2, y: geo.size.height * 0.46)
+
+                LinearGradient(
+                    stops: [
+                        .init(color: Color(hex: 0xD68EA5).opacity(0), location: 0.55),
+                        .init(color: Color(hex: 0xD68EA5).opacity(0.28), location: 0.82),
+                        .init(color: Color(hex: 0xD08199).opacity(0.5), location: 1.0),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
 
                 GrainOverlay()
-                    .blendMode(.overlay)
-                    .opacity(0.3)
+                    .blendMode(.softLight)
+                    .opacity(0.22)
             }
-            .frame(width: geo.size.width, height: geo.size.height)
         }
-        .ignoresSafeArea()
     }
 }
 

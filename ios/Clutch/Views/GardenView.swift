@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 /// `UIImage` has no built-in `Transferable` conformance — `ShareLink` needs
 /// this thin wrapper to export the snapshot as JPEG data.
-private struct ShareableGardenImage: Transferable {
+struct ShareableGardenImage: Transferable {
     let image: UIImage
 
     static var transferRepresentation: some TransferRepresentation {
@@ -14,33 +14,30 @@ private struct ShareableGardenImage: Transferable {
     }
 }
 
-/// The Garden screen: one symptom at a time as a swipeable card — right to
-/// log, left to skip. Either direction plants a flower along the bottom of
-/// the screen (showing up counts, even when the answer is "skip"); finishing
-/// the deck with at least one flower brings in a butterfly that opens a
-/// share sheet when tapped. An empty garden — the deck finishing with
-/// nothing planted — still gets a quiet, non-judgmental message rather than
-/// a faked reward, though in practice that's now unreachable while the
-/// catalog is non-empty, since every card plants something.
-///
-/// Blooms and the butterfly are real photo cutouts (feathered PNGs derived
-/// from the user's own reference photos), not the reference prototype's
-/// original bitmaps — those arrived as inline base64 too long to
-/// transcribe by hand without risking silent corruption.
+/// The Garden screen: one card at a time as a swipeable deck — right to
+/// log, left to skip. Either direction adds a gradient tulip to the day's
+/// bouquet (showing up counts, even when the answer is "skip"). A finished
+/// bouquet can be shared, and joins the collection that tracks her streak.
 struct GardenView: View {
     let signature: UIImage?
 
     @StateObject private var model = GardenModel()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var promptText = "Log how you feel — your garden fills as you go."
-    @State private var showButterfly = false
+    @State private var promptText = "Log how you feel, your garden fills as you go."
     @State private var showShare = false
     @State private var didStart = false
-    @State private var gardenSnapshot: UIImage?
+    @State private var shareCaption = ""
+    @State private var showCollection = false
+    @State private var collection: [CollectedBouquet] = []
+    /// Once the deck is done the bouquet grows to full size in the middle
+    /// of the screen; while logging it sits smaller, low, under the cards.
+    @State private var bouquetCentered = false
+
+    private var streak: Int { BouquetCollection.streak(collectedDays: collection.map(\.day)) }
 
     init(signature: UIImage? = nil) {
-        self.signature = signature
+        self.signature = signature ?? SignatureStore.load()
     }
 
     /// The two-tone text palette used throughout: a near-black warm brown
@@ -54,11 +51,9 @@ struct GardenView: View {
         ZStack {
             AuraBackground()
 
-            // ~1 inch of clearance below the stems, off the true screen edge,
-            // plus room for the tab bar sitting on top of it.
             flowerBed
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 168)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: bouquetCentered ? .center : .bottom)
+                .padding(.bottom, bouquetCentered ? 60 : 80)
 
             Group {
                 if didStart {
@@ -73,19 +68,41 @@ struct GardenView: View {
                         if !model.isFinished {
                             SwipeDeck(model: model, onCommit: handleCommit, onFinished: handleFinished)
                                 .padding(.horizontal, 28)
+                        } else if model.hasBloomed {
+                            HStack(spacing: 12) {
+                                GardenChip(title: "Share bouquet", symbol: "square.and.arrow.up") {
+                                    shareToday()
+                                }
+                                GardenChip(
+                                    title: streak == 1 ? "1-day streak" : "\(streak)-day streak",
+                                    symbol: "rectangle.stack"
+                                ) {
+                                    showCollection = true
+                                }
+                            }
+                            .transition(.opacity)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .padding(.top, 190)
-                    .transition(.opacity)
+                    .padding(.top, 8)
+                    // Rises out of the orb up into the space the header leaves.
+                    .transition(.asymmetric(
+                        insertion: .offset(y: 380).combined(with: .opacity),
+                        removal: .opacity
+                    ))
                 } else {
                     startState
-                        .transition(.opacity)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
             }
 
-            topBar
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // The name and wordmark step aside once the day starts, so the
+            // deck and the flowers have the screen.
+            if !didStart {
+                topBar
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
 
             if showShare {
                 // A Polaroid card over the same screen rather than a system
@@ -94,7 +111,7 @@ struct GardenView: View {
                     .ignoresSafeArea()
                     .onTapGesture { withAnimation(.easeInOut(duration: 0.25)) { showShare = false } }
                     .overlay {
-                        PolaroidCard(image: gardenSnapshot, flowerCount: model.totalLoggedCount) {
+                        PolaroidCard(flowers: model.flowers, signature: signature, caption: shareCaption) {
                             withAnimation(.easeInOut(duration: 0.25)) { showShare = false }
                         }
                     }
@@ -104,7 +121,11 @@ struct GardenView: View {
             dock
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
+        .sheet(isPresented: $showCollection) {
+            BouquetCollectionView(bouquets: collection, streak: streak)
+        }
         .onAppear {
+            collection = BouquetCollection.load()
             // Resuming after today's deck was already finished (app relaunched,
             // came back from another tab) — the commit flow that normally
             // drives this UI never runs, so re-derive it from the model.
@@ -113,6 +134,9 @@ struct GardenView: View {
             guard model.isFinished else { return }
             didStart = true
             handleFinished()
+            #if DEBUG
+            if DebugLaunch.showShare { shareToday() }
+            #endif
         }
     }
 
@@ -133,7 +157,7 @@ struct GardenView: View {
             .padding(.trailing, 6)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 48)
+        .padding(.top, 68)
     }
 
     private var signatureBox: some View {
@@ -154,8 +178,8 @@ struct GardenView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 
-            // No real cycle-start date is captured yet (see
-            // `GardenModel.phase`), so the day is a placeholder.
+            // Not derived from the saved cycle start yet, so the day is a
+            // placeholder.
             Text("DAY 1")
                 .font(.custom("HelveticaNeue", size: 9))
                 .tracking(1.4)
@@ -217,7 +241,9 @@ struct GardenView: View {
 
         return Button {
             if item == .share {
-                if model.hasBloomed { shareGarden() }
+                shareToday()
+            } else if item == .bouquets {
+                showCollection = true
             } else {
                 selectedDockItem = item
             }
@@ -235,127 +261,53 @@ struct GardenView: View {
         .accessibilityLabel(item.title)
     }
 
-    /// The idle screen shown before today's deck begins: a quiet prompt
-    /// over the glass orb that starts the day, sitting at the aura's core.
+    /// The idle screen shown before today's deck begins: the glass orb that
+    /// starts the day, with the prompt written around it.
     private var startState: some View {
         StartOrb(text: "log how you feel  \u{2726}  your garden fills  \u{2726}  tap to begin  \u{2726}  ") {
-            withAnimation(.easeInOut(duration: 0.4)) { didStart = true }
+            withAnimation(.spring(response: 0.7, dampingFraction: 0.85)) { didStart = true }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .offset(y: 20)
     }
 
-    private func handleCommit(keep: Bool, symptom: Symptom) {
-        promptText = keep ? "\u{201C}\(symptom.label)\u{201D} bloomed." : "skipped."
+    private func handleCommit(keep: Bool, symptom: Symptom, flow: Flow?) {
+        if keep, let flow {
+            promptText = "Period logged, \(flow.rawValue) flow."
+        } else {
+            promptText = keep ? "\u{201C}\(symptom.label)\u{201D} bloomed." : "skipped."
+        }
     }
 
     private func handleFinished() {
-        promptText = model.hasBloomed ? "Your garden today." : "A quiet day. Nothing planted."
-        guard model.hasBloomed else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            showButterfly = true
+        promptText = model.hasBloomed ? "Your bouquet today." : "A quiet day. Nothing planted."
+        withAnimation(.easeInOut(duration: 0.3)) {
+            collection = BouquetCollection.load()
         }
+        guard model.hasBloomed else { return }
+        withAnimation(.easeInOut(duration: 1.4)) { bouquetCentered = true }
     }
 
-    /// Renders the bouquet (no butterfly) to a fixed-size image for the
-    /// Polaroid card, then opens it.
-    private func shareGarden() {
-        let content = ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.98, green: 0.85, blue: 0.88), Color(red: 0.96, green: 0.90, blue: 0.87)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            bouquetCluster
-                .scaleEffect(0.82)
-                .offset(y: 16)
-        }
-        .frame(width: 300, height: 300)
-
-        let renderer = ImageRenderer(content: content)
-        renderer.scale = UIScreen.main.scale
-        gardenSnapshot = renderer.uiImage
-
+    private func shareToday() {
+        guard model.hasBloomed else { return }
+        let count = model.totalLoggedCount
+        shareCaption = count == 1 ? "1 thing bloomed today" : "\(count) things bloomed today"
         withAnimation(.easeInOut(duration: 0.3)) { showShare = true }
     }
 
-    /// Tall enough for the tallest possible stem (160) + bloom head (~95,
-    /// roughly as tall as it is wide) + the butterfly's own clearance above
-    /// it. Flowers sit flush at the bottom of this frame — the "inch or so"
-    /// of clearance above the true screen edge is applied once, outside,
-    /// where `flowerBed` is used.
-    private static let bedHeight: CGFloat = 320
-
-    /// The bloom head crops are roughly as tall as they are wide, so this
-    /// approximates a flower's full visual height (stem + head) without
-    /// needing to measure the actual image.
-    private func visualHeight(_ flower: PlantedFlower) -> CGFloat {
-        flower.stemHeight + flower.bloomWidth
-    }
-
-    /// The flowers only — fanned out like a bouquet around a shared centre,
-    /// closer together as more get planted so the cluster stays compact
-    /// instead of spreading edge to edge. Reused as-is for the share
-    /// snapshot, so what you share matches what's on screen.
-    private var bouquetCluster: some View {
-        ZStack(alignment: .bottom) {
-            ForEach(Array(model.flowers.enumerated()), id: \.element.id) { index, flower in
-                let n = model.flowers.count
-                let mid = Double(n - 1) / 2
-                let fan = fanStep(for: n)
-                let step = bouquetSpacing(for: n)
-
-                FlowerView(flower: flower, reduceMotion: reduceMotion)
-                    .rotationEffect(.degrees((Double(index) - mid) * fan), anchor: .bottom)
-                    .offset(x: (Double(index) - mid) * step + flower.jitter)
-                    .zIndex(Double(index))
-            }
-        }
-    }
-
-    private func fanStep(for count: Int) -> Double {
-        count > 1 ? 7 : 0
-    }
-
-    /// Fixed rather than shrinking with count — a capped, sparse bouquet
-    /// (max 6) stays legible at a constant spacing instead of packing
-    /// tighter as it fills, so the background always shows through.
-    private func bouquetSpacing(for count: Int) -> Double {
-        count > 1 ? 70 : 0
-    }
-
-    /// Landing spots for the butterfly's roam, in the same centre-relative
-    /// coordinate space the bouquet places flowers in — a handful of
-    /// flowers spread across the bouquet, not all of them.
-    private var butterflyLandingSpots: [CGPoint] {
-        let flowers = model.flowers
-        guard !flowers.isEmpty else { return [] }
-        let n = flowers.count
-        let mid = Double(n - 1) / 2
-        let step = bouquetSpacing(for: n)
-        let visitCount = min(4, n)
-        let indices: [Int] = visitCount == 1
-            ? [n - 1]
-            : (0..<visitCount).map { i in Int((Double(i) * Double(n - 1) / Double(visitCount - 1)).rounded()) }
-
-        return indices.map { i in
-            CGPoint(x: (Double(i) - mid) * step + flowers[i].jitter, y: -(visualHeight(flowers[i]) * 0.82))
-        }
-    }
-
     private var flowerBed: some View {
-        bouquetCluster
+        let scale: CGFloat = bouquetCentered ? 1 : 0.55
+        return Bouquet(flowers: model.flowers, reduceMotion: reduceMotion, signature: signature)
+            .scaleEffect(scale, anchor: .bottom)
+            .frame(width: Bouquet.size.width, height: Bouquet.size.height * scale, alignment: .bottom)
             .frame(maxWidth: .infinity)
-            .frame(height: Self.bedHeight, alignment: .bottom)
-            .overlay(alignment: .bottom) {
-                if showButterfly {
-                    ButterflyView(landingSpots: butterflyLandingSpots, reduceMotion: reduceMotion) {
-                        shareGarden()
-                    }
-                }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if model.isFinished && model.hasBloomed { shareToday() }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(gardenSummaryLabel)
+            .accessibilityAddTraits(model.isFinished && model.hasBloomed ? .isButton : [])
     }
 
     private var gardenSummaryLabel: String {
@@ -370,11 +322,13 @@ struct GardenView: View {
 /// it for depth, plus the ✕ / ♥ tap targets that mirror the swipe gesture.
 private struct SwipeDeck: View {
     @ObservedObject var model: GardenModel
-    let onCommit: (_ keep: Bool, _ symptom: Symptom) -> Void
+    let onCommit: (_ keep: Bool, _ symptom: Symptom, _ flow: Flow?) -> Void
     let onFinished: () -> Void
 
     @State private var dragOffset: CGSize = .zero
     @State private var cardOpacity: Double = 1
+    /// Set after a right swipe on the period card, while flow is picked.
+    @State private var askingFlow = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -383,9 +337,9 @@ private struct SwipeDeck: View {
                     card(symptom: pair.element, depth: pair.offset)
                 }
             }
-            .frame(height: 190)
+            .frame(height: 316)
 
-            if let symptom = model.currentSymptom {
+            if let symptom = model.currentSymptom, !askingFlow {
                 HStack(spacing: 36) {
                     tapButton(systemName: "xmark", tint: Color(red: 0.61, green: 0.54, blue: 0.50)) {
                         commit(false, symptom: symptom)
@@ -393,7 +347,7 @@ private struct SwipeDeck: View {
                     .accessibilityLabel("Skip \(symptom.label)")
 
                     tapButton(systemName: "heart.fill", tint: .white, background: Color.matcha) {
-                        commit(true, symptom: symptom)
+                        log(symptom)
                     }
                     .accessibilityLabel("Log \(symptom.label)")
                 }
@@ -405,39 +359,40 @@ private struct SwipeDeck: View {
         let isTop = depth == 0
 
         return ZStack {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(.white)
-                .shadow(color: .black.opacity(0.14), radius: 20, y: 12)
-
-            VStack(spacing: 10) {
-                Text(symptom.label.capitalized)
-                    .font(.custom("PlayfairDisplay-SemiBold", size: 28))
-                    .foregroundStyle(Color(red: 0.29, green: 0.23, blue: 0.20))
-                Text("swipe right to log, left to skip")
-                    .font(.system(size: 14, design: .serif).italic())
-                    .foregroundStyle(Color(red: 0.61, green: 0.54, blue: 0.50))
-            }
+            CrosswordCard(symptom: symptom)
 
             if isTop {
                 stamp("LOG", tint: Color.matcha, alignment: .topTrailing, opacity: logStampOpacity)
                 stamp("SKIP", tint: Color(red: 0.61, green: 0.54, blue: 0.50), alignment: .topLeading, opacity: skipStampOpacity)
             }
+
+            if isTop && askingFlow {
+                FlowPicker(
+                    onPick: { flow in
+                        commit(true, symptom: symptom, flow: flow)
+                    },
+                    onBack: {
+                        withAnimation(.easeInOut(duration: 0.25)) { askingFlow = false }
+                    }
+                )
+                .transition(.opacity)
+            }
         }
-        .frame(height: 176)
-        .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .frame(height: 300)
+        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .scaleEffect(isTop ? 1 : 1 - CGFloat(depth) * 0.04)
         .offset(y: isTop ? 0 : CGFloat(depth) * 10)
         .offset(isTop ? dragOffset : .zero)
         .rotationEffect(.degrees(isTop ? dragOffset.width / 18 : 0))
         .opacity(isTop ? cardOpacity : 1)
         .zIndex(isTop ? 10 : Double(9 - depth))
-        .gesture(isTop ? dragGesture(for: symptom) : nil)
+        .gesture(isTop && !askingFlow ? dragGesture(for: symptom) : nil)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(isTop ? symptom.label : "")
         .accessibilityAddTraits(isTop ? .isButton : [])
         .accessibilityActions {
             if isTop {
-                Button("Log \(symptom.label)") { commit(true, symptom: symptom) }
+                Button("Log \(symptom.label)") { log(symptom) }
                 Button("Skip \(symptom.label)") { commit(false, symptom: symptom) }
             }
         }
@@ -467,7 +422,7 @@ private struct SwipeDeck: View {
             }
             .onEnded { value in
                 if value.translation.width > 88 {
-                    commit(true, symptom: symptom)
+                    log(symptom)
                 } else if value.translation.width < -88 {
                     commit(false, symptom: symptom)
                 } else {
@@ -494,183 +449,33 @@ private struct SwipeDeck: View {
         .buttonStyle(.plain)
     }
 
-    private func commit(_ keep: Bool, symptom: Symptom) {
+    /// A right swipe / heart. The period card first asks for flow; every
+    /// other card logs straight away.
+    private func log(_ symptom: Symptom) {
+        guard symptom.asksForFlow else {
+            commit(true, symptom: symptom)
+            return
+        }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            dragOffset = .zero
+            askingFlow = true
+        }
+    }
+
+    private func commit(_ keep: Bool, symptom: Symptom, flow: Flow? = nil) {
         let flyDistance: CGFloat = keep ? 520 : -520
         withAnimation(.easeIn(duration: 0.4)) {
             dragOffset = CGSize(width: flyDistance, height: 40)
             cardOpacity = 0
         }
-        onCommit(keep, symptom)
+        onCommit(keep, symptom, flow)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            if keep { model.logCurrent() } else { model.skipCurrent() }
+            if keep { model.logCurrent(flow: flow) } else { model.skipCurrent() }
             dragOffset = .zero
             cardOpacity = 1
+            askingFlow = false
             if model.isFinished { onFinished() }
-        }
-    }
-}
-
-// MARK: - Flowers
-
-/// One planted flower: a photographed bloom head on top of a separately
-/// drawn stem and leaf, growing in once and swaying forever after on its
-/// own randomised timer. The stem is deliberately understated — soft,
-/// translucent, faintly curved — so it recedes behind the bloom rather
-/// than competing with it.
-private struct FlowerView: View {
-    let flower: PlantedFlower
-    let reduceMotion: Bool
-
-    @State private var grown = false
-    @State private var swayHigh = false
-
-    private static let bloomNames = ["bloom-1", "bloom-2", "bloom-3", "bloom-4", "bloom-5"]
-    private var bloomName: String { Self.bloomNames[flower.paletteIndex % Self.bloomNames.count] }
-
-    /// Muted, desaturated olive — a clean saturated green would fight the
-    /// bloom for attention instead of receding behind it.
-    private static let stemColor = Color(red: 0.43, green: 0.46, blue: 0.33)
-
-    private var leafOnRight: Bool { flower.stemCurveOffset < 0 }
-
-    var body: some View {
-        VStack(spacing: -6) {
-            Image(bloomName)
-                .resizable()
-                .scaledToFit()
-                .frame(width: flower.bloomWidth)
-                .shadow(color: .black.opacity(0.14), radius: 5, y: 3)
-
-            StemShape(curveOffset: flower.stemCurveOffset)
-                .stroke(Self.stemColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                .frame(width: 24, height: flower.stemHeight)
-                .opacity(0.55)
-                .blur(radius: 1.5)
-                .overlay {
-                    LeafShape()
-                        .fill(Self.stemColor)
-                        .frame(width: flower.stemHeight * 0.3, height: flower.stemHeight * 0.14)
-                        .rotationEffect(.degrees(leafOnRight ? 35 : -35))
-                        .offset(
-                            x: leafOnRight ? flower.stemHeight * 0.14 : -flower.stemHeight * 0.14,
-                            y: flower.stemHeight * 0.12
-                        )
-                        .opacity(0.6)
-                        .blur(radius: 2.5)
-                }
-        }
-        .rotationEffect(.degrees(flower.rotation), anchor: .bottom)
-        .rotationEffect(.degrees(swayHigh ? 1.8 : -1.6), anchor: .bottom)
-        .scaleEffect(grown ? 1 : 0.6, anchor: .bottom)
-        .opacity(grown ? 1 : 0)
-        .onAppear {
-            withAnimation(.easeOut(duration: 0.9)) { grown = true }
-            guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: flower.swayPeriod).repeatForever(autoreverses: true)) {
-                swayHigh = true
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
-/// A softly curved stem: a single quadratic path from base to tip, its
-/// control point pulled off-centre so it bows rather than running dead
-/// straight.
-private struct StemShape: Shape {
-    let curveOffset: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        let base = CGPoint(x: rect.midX, y: rect.maxY)
-        let tip = CGPoint(x: rect.midX, y: rect.minY)
-        let control = CGPoint(x: rect.midX + curveOffset, y: rect.midY)
-
-        var path = Path()
-        path.move(to: base)
-        path.addQuadCurve(to: tip, control: control)
-        return path
-    }
-}
-
-/// A simple tapered leaf — two quadratic curves meeting at each end —
-/// filled rather than stroked, then blurred and dimmed more than the stem.
-private struct LeafShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
-        path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.midY), control: CGPoint(x: rect.midX, y: rect.minY))
-        path.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.midY), control: CGPoint(x: rect.midX, y: rect.maxY))
-        return path
-    }
-}
-
-// MARK: - Butterfly
-
-/// Flies in from off-screen to the first flower, then roams from bloom to
-/// bloom forever, pausing to flutter at each one — skipped entirely under
-/// Reduce Motion, where it just appears at the last stop. Tapping it (at
-/// any point in the roam) opens the share Polaroid.
-private struct ButterflyView: View {
-    let landingSpots: [CGPoint]
-    let reduceMotion: Bool
-    let onTap: () -> Void
-
-    @State private var position: CGPoint = .zero
-    @State private var rotation: Double = 0
-    @State private var flutter = false
-    @State private var appeared = false
-    @State private var stopIndex = 0
-
-    var body: some View {
-        Image("butterfly")
-            .resizable()
-            .scaledToFit()
-            .frame(width: 62, height: 45)
-            .contentShape(Rectangle())
-            .rotationEffect(.degrees(rotation))
-            .offset(x: position.x, y: position.y + (flutter && !reduceMotion ? -6 : 0))
-            .opacity(appeared ? 1 : 0)
-            .onTapGesture(perform: onTap)
-            .onAppear { start() }
-            .accessibilityLabel("Share your garden")
-            .accessibilityAddTraits(.isButton)
-    }
-
-    private func start() {
-        guard let first = landingSpots.first else { return }
-        if reduceMotion {
-            position = first
-            appeared = true
-            return
-        }
-        position = CGPoint(x: first.x + 170, y: first.y - 190)
-        rotation = 24
-        withAnimation(.easeOut(duration: 0.4)) { appeared = true }
-        withAnimation(.easeInOut(duration: 0.9)) {
-            position = first
-            rotation = 0
-        }
-        withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
-            flutter = true
-        }
-        guard landingSpots.count > 1 else { return }
-        roam(after: 1.8)
-    }
-
-    private func roam(after delay: Double) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            stopIndex = (stopIndex + 1) % landingSpots.count
-            let target = landingSpots[stopIndex]
-            let headingRight = target.x > position.x
-            withAnimation(.easeInOut(duration: 1.0)) {
-                position = target
-                rotation = headingRight ? 12 : -12
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                withAnimation(.easeInOut(duration: 0.3)) { rotation = 0 }
-            }
-            roam(after: 2.6)
         }
     }
 }
@@ -680,14 +485,15 @@ private struct ButterflyView: View {
 /// The share card: a snapshot of the bouquet in a white Polaroid frame,
 /// tilted like it was just tossed down, with a real `ShareLink` for the
 /// image underneath.
-private struct PolaroidCard: View {
-    let image: UIImage?
-    let flowerCount: Int
+struct PolaroidCard: View {
+    let flowers: [PlantedFlower]
+    /// When there is one, the card offers to put her name on the bouquet.
+    let signature: UIImage?
+    let caption: String
     let onClose: () -> Void
 
-    private var summary: String {
-        flowerCount == 1 ? "1 thing bloomed today" : "\(flowerCount) things bloomed today"
-    }
+    @State private var includeName = true
+    @State private var image: UIImage?
 
     var body: some View {
         VStack(spacing: 14) {
@@ -704,22 +510,30 @@ private struct PolaroidCard: View {
             .clipped()
 
             VStack(spacing: 4) {
-                Text("Share your garden")
+                Text("Share your bouquet")
                     .font(.custom("PinyonScript-Regular", size: 32))
                     .foregroundStyle(Color(red: 0.29, green: 0.23, blue: 0.20))
-                Text(summary)
+                Text(caption)
                     .font(.system(size: 13, design: .serif).italic())
                     .foregroundStyle(Color(red: 0.61, green: 0.54, blue: 0.50))
+            }
+
+            if signature != nil {
+                Toggle("Include my name", isOn: $includeName)
+                    .font(.system(size: 14, design: .serif).italic())
+                    .foregroundStyle(Color(red: 0.29, green: 0.23, blue: 0.20))
+                    .tint(Color(hex: 0xD68EA5))
+                    .frame(width: 220)
             }
 
             if let image {
                 ShareLink(
                     item: ShareableGardenImage(image: image),
-                    preview: SharePreview("My Clutch garden", image: Image(uiImage: image))
+                    preview: SharePreview("My Clutch bouquet", image: Image(uiImage: image))
                 ) {
                     Text("Share")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color(red: 0.29, green: 0.23, blue: 0.20))
                         .padding(.horizontal, 28)
                         .padding(.vertical, 11)
                         .background(Color.strawberry, in: Capsule())
@@ -730,6 +544,8 @@ private struct PolaroidCard: View {
         .padding(16)
         .padding(.bottom, 12)
         .background(.white)
+        .onAppear(perform: render)
+        .onChange(of: includeName) { render() }
         .rotationEffect(.degrees(-2.5))
         .shadow(color: .black.opacity(0.3), radius: 26, y: 16)
         .overlay(alignment: .topTrailing) {
@@ -743,16 +559,20 @@ private struct PolaroidCard: View {
             .offset(x: 8, y: -8)
         }
     }
+
+    private func render() {
+        image = BouquetSnapshot.image(of: flowers, signature: includeName ? signature : nil)
+    }
 }
 
 // MARK: - Dock items
 
-/// Only `garden` and `share` do anything real yet; the rest are visual
-/// placeholders not wired to any destination.
+/// `garden`, `bouquets` and `share` are wired up; `cycle` and `discover`
+/// are visual placeholders not wired to any destination yet.
 private enum DockItem: String, CaseIterable, Identifiable {
-    case garden, cycle, journal, discover, share
+    case garden, cycle, bouquets, discover, share
 
-    static let primary: [DockItem] = [.garden, .cycle, .journal, .discover]
+    static let primary: [DockItem] = [.garden, .cycle, .bouquets, .discover]
 
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
@@ -761,7 +581,7 @@ private enum DockItem: String, CaseIterable, Identifiable {
         switch self {
         case .garden: "leaf"
         case .cycle: "moon"
-        case .journal: "book.closed"
+        case .bouquets: "rectangle.stack"
         case .discover: "sparkles"
         case .share: "square.and.arrow.up"
         }
@@ -772,7 +592,7 @@ private enum DockItem: String, CaseIterable, Identifiable {
         switch self {
         case .garden: [Color(hex: 0xFFFBE8), Color(hex: 0xD4FDE0), Color(hex: 0xF5DFF9)]
         case .cycle: [Color(hex: 0xFFFFFF), Color(hex: 0xF5DFF9), Color(hex: 0xE9D5F7)]
-        case .journal: [Color(hex: 0xFFF6D8), Color(hex: 0xFDDEDF), Color(hex: 0xE9E7F3)]
+        case .bouquets: [Color(hex: 0xFFF6D8), Color(hex: 0xFDDEDF), Color(hex: 0xE9E7F3)]
         case .discover: [Color(hex: 0xFFFFFF), Color(hex: 0xE9D5F7), Color(hex: 0xFEE4FE)]
         case .share: [Color(hex: 0xFFFDEE), Color(hex: 0xFDE6D0), Color(hex: 0xF6D5E6)]
         }
@@ -791,4 +611,26 @@ private struct DockButtonStyle: ButtonStyle {
 
 #Preview {
     GardenView()
+}
+
+/// A small frosted pill for actions under the finished bouquet.
+private struct GardenChip: View {
+    let title: String
+    let symbol: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.custom("HelveticaNeue-Medium", size: 14))
+                .foregroundStyle(Color(red: 0.29, green: 0.23, blue: 0.20))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: Capsule())
+                .background(.white.opacity(0.35), in: Capsule())
+                .overlay(Capsule().strokeBorder(.white.opacity(0.8), lineWidth: 0.8))
+                .shadow(color: Color(hex: 0xB0587F).opacity(0.15), radius: 10, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
 }
