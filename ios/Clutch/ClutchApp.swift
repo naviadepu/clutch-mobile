@@ -9,7 +9,9 @@ struct ClutchApp: App {
         WindowGroup {
             NavigationStack {
                 #if DEBUG
-                if let step = DebugLaunch.question {
+                if DebugLaunch.requestScreen {
+                    RequestView(locations: DebugLaunch.sampleSpots ? ProductLocation.samples : ProductLocationStore.all)
+                } else if let step = DebugLaunch.question {
                     DebugQuestionScreen(step: step)
                 } else if DebugLaunch.finishedGarden {
                     GardenView()
@@ -40,6 +42,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 /// going through onboarding. Add `-showShare` to open the share card too.
 enum DebugLaunch {
     static let showShare = ProcessInfo.processInfo.arguments.contains("-showShare")
+
+    /// `-requestScreen` opens the Request screen on its own; add
+    /// `-sampleSpots` to fill it with stand-in locations.
+    static let requestScreen = ProcessInfo.processInfo.arguments.contains("-requestScreen")
+    static let sampleSpots = ProcessInfo.processInfo.arguments.contains("-sampleSpots")
 
     /// `-question3` opens that onboarding question on its own.
     static let question: Int? = ProcessInfo.processInfo.arguments

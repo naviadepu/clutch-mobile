@@ -29,6 +29,7 @@ struct GardenView: View {
     @State private var didStart = false
     @State private var shareCaption = ""
     @State private var showCollection = false
+    @State private var showRequest = false
     @State private var collection: [CollectedBouquet] = []
     /// Once the deck is done the bouquet grows to full size in the middle
     /// of the screen; while logging it sits smaller, low, under the cards.
@@ -123,6 +124,9 @@ struct GardenView: View {
         }
         .sheet(isPresented: $showCollection) {
             BouquetCollectionView(bouquets: collection, streak: streak)
+        }
+        .sheet(isPresented: $showRequest) {
+            RequestView()
         }
         .onAppear {
             collection = BouquetCollection.load()
@@ -244,6 +248,8 @@ struct GardenView: View {
                 shareToday()
             } else if item == .bouquets {
                 showCollection = true
+            } else if item == .request {
+                showRequest = true
             } else {
                 selectedDockItem = item
             }
@@ -567,12 +573,12 @@ struct PolaroidCard: View {
 
 // MARK: - Dock items
 
-/// `garden`, `bouquets` and `share` are wired up; `cycle` and `discover`
-/// are visual placeholders not wired to any destination yet.
+/// `garden`, `request`, `bouquets` and `share` are wired up; `cycle` and
+/// `discover` are visual placeholders not wired to any destination yet.
 private enum DockItem: String, CaseIterable, Identifiable {
-    case garden, cycle, bouquets, discover, share
+    case garden, cycle, request, bouquets, discover, share
 
-    static let primary: [DockItem] = [.garden, .cycle, .bouquets, .discover]
+    static let primary: [DockItem] = [.garden, .cycle, .request, .bouquets, .discover]
 
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
@@ -581,6 +587,7 @@ private enum DockItem: String, CaseIterable, Identifiable {
         switch self {
         case .garden: "leaf"
         case .cycle: "moon"
+        case .request: "hand.raised"
         case .bouquets: "rectangle.stack"
         case .discover: "sparkles"
         case .share: "square.and.arrow.up"
@@ -592,6 +599,7 @@ private enum DockItem: String, CaseIterable, Identifiable {
         switch self {
         case .garden: [Color(hex: 0xFFFBE8), Color(hex: 0xD4FDE0), Color(hex: 0xF5DFF9)]
         case .cycle: [Color(hex: 0xFFFFFF), Color(hex: 0xF5DFF9), Color(hex: 0xE9D5F7)]
+        case .request: [Color(hex: 0xFFFBF0), Color(hex: 0xFDDCE6), Color(hex: 0xE7DCF6)]
         case .bouquets: [Color(hex: 0xFFF6D8), Color(hex: 0xFDDEDF), Color(hex: 0xE9E7F3)]
         case .discover: [Color(hex: 0xFFFFFF), Color(hex: 0xE9D5F7), Color(hex: 0xFEE4FE)]
         case .share: [Color(hex: 0xFFFDEE), Color(hex: 0xFDE6D0), Color(hex: 0xF6D5E6)]

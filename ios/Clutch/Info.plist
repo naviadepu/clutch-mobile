@@ -37,7 +37,7 @@
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Clutch uses your location to match you with nearby givers and requesters on campus.</string>
+	<string>Clutch uses your location only to show the nearest free period product spots first. It stays on your phone.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
@@ -50,6 +50,10 @@
 		<string>DotoRounded-Medium.ttf</string>
 		<string>Quicksand-Light.ttf</string>
 		<string>Quicksand-Regular.ttf</string>
+		<string>DMSans-Regular.ttf</string>
+		<string>InterTight-SemiBold.ttf</string>
+		<string>CormorantGaramond-Light.ttf</string>
+		<string>DMSans-Light.ttf</string>
 	</array>
 </dict>
 </plist>
