@@ -8,14 +8,20 @@ final class CycleTests: XCTestCase {
         calendar.startOfDay(for: calendar.date(byAdding: .day, value: offset, to: base)!)
     }
 
-    func testDeckIsThePeriodCardThenTheFourMoodCheckIns() {
+    private func log(planted: Int, seed: Int) -> DayLog {
+        var log = DayLog(date: day(0), seed: seed)
+        log.planted = planted
+        return log
+    }
+
+    func testSymptomSwipesAreTheEightNewOnes() {
         XCTAssertEqual(
             Symptom.catalog.map(\.id),
-            [Symptom.periodID, "low", "anxious", "moody", "irritable"]
+            ["anxious", "low", "irritable", "cramps", "bloating", "headache", "poor-sleep", "cravings"]
         )
     }
 
-    func testFirstBleedingDayBecomesTheStartWhenSheDidntRemember() {
+    func testFirstBleedingDayBecomesTheStartWhenSheWasntSure() {
         let today = day(0)
         let start = CycleProfile.newPeriodStart(
             loggedOn: today, yesterdayHadPeriod: false, currentStart: nil, periodLength: 5, calendar: calendar
@@ -46,25 +52,76 @@ final class CycleTests: XCTestCase {
         XCTAssertEqual(BirthControl.hormonalIUD.effective, .hormonalIUD)
     }
 
+    // MARK: - Migration
+
     func testOldDayLogsWithoutFlowStillDecode() throws {
         let json = #"{"date": 0, "symptoms": ["cramps"], "skipped": [], "seed": 7}"#
         let log = try JSONDecoder().decode(DayLog.self, from: Data(json.utf8))
         XCTAssertNil(log.flow)
         XCTAssertEqual(log.symptoms, ["cramps"])
+        XCTAssertEqual(log.legacySymptoms, ["cramps"])
+    }
+
+    /// A finished day from the five-card deck.
+    private let versionOneLog = #"""
+    {"date": 800000000, "seed": 42, "flow": "heavy",
+     "symptoms": ["period", "low", "moody"], "skipped": ["anxious", "irritable"]}
+    """#
+
+    func testVersionOneLogMigratesToTheNewFields() throws {
+        let log = try JSONDecoder().decode(DayLog.self, from: Data(versionOneLog.utf8))
+        XCTAssertEqual(log.flow, .heavy)
+        XCTAssertEqual(log.symptoms, ["low"], "feeling low → low")
+        XCTAssertEqual(log.skipped, ["anxious", "irritable"], "anxiety → anxious")
+        XCTAssertEqual(log.moodSwings, true, "mood swings kept as it was")
+        XCTAssertNil(log.mood, "a yes/no can't become a 1–5 mood")
+        XCTAssertEqual(log.legacySymptoms, ["period", "low", "moody"])
+        XCTAssertEqual(log.legacySkipped, ["anxious", "irritable"])
+        XCTAssertTrue(log.completed)
+        XCTAssertEqual(log.planted, 5)
+        XCTAssertEqual(log.version, DayLog.currentVersion)
+    }
+
+    func testMigratedLogKeepsItsBouquetAndSurvivesASave() throws {
+        let migrated = try JSONDecoder().decode(DayLog.self, from: Data(versionOneLog.utf8))
+        var original = DayLog(date: migrated.date, seed: 42)
+        original.planted = 5
+        XCTAssertEqual(BouquetGenerator.flowers(for: migrated).map(\.art), BouquetGenerator.flowers(for: original).map(\.art))
+
+        let resaved = try JSONDecoder().decode(DayLog.self, from: JSONEncoder().encode(migrated))
+        XCTAssertEqual(resaved, migrated)
+    }
+
+    func testVersionOneProfileKeepsItsAnswersAndSkipsOnboarding() throws {
+        let json = #"{"age": 14, "cycleLength": 30, "birthControl": "hormonalIUD", "lastPeriodStart": 800000000}"#
+        let profile = try JSONDecoder().decode(CycleProfile.self, from: Data(json.utf8))
+        XCTAssertTrue(profile.onboardingComplete)
+        XCTAssertEqual(profile.age, 14)
+        XCTAssertEqual(profile.ageRange, .fifteenToSeventeen)
+        XCTAssertEqual(profile.cycleLength, 30)
+        XCTAssertEqual(profile.birthControl, .hormonalIUD)
+        XCTAssertEqual(profile.oneTimeCards[OneTimeQuestion.birthControl.id]?.answered, true)
+        XCTAssertEqual(profile.oneTimeCards[OneTimeQuestion.periodLength.id]?.answered, true)
+        XCTAssertNil(profile.oneTimeCards[OneTimeQuestion.goals.id])
+    }
+
+    func testAgeRangesCoverFifteenToSeventy() {
+        XCTAssertEqual(AgeRange(age: 15), .fifteenToSeventeen)
+        XCTAssertEqual(AgeRange(age: 24), .eighteenToTwentyFour)
+        XCTAssertEqual(AgeRange(age: 25), .twentyFiveToThirtyFive)
+        XCTAssertEqual(AgeRange(age: 70), .thirtySixToSeventy)
     }
 
     // MARK: - Bouquet collection
 
     func testDifferentDaysArrangeTheFlowersDifferently() {
-        let orders = (0..<8).map { seed in
-            BouquetGenerator.flowers(for: DayLog(date: day(0), symptoms: ["a", "b", "c", "d", "e"], seed: seed)).map(\.art)
-        }
+        let orders = (0..<8).map { seed in BouquetGenerator.flowers(for: log(planted: 5, seed: seed)).map(\.art) }
         XCTAssertGreaterThan(Set(orders).count, 1)
     }
 
     func testSoftPhotosOnlyEverSitInTheBackRow() {
         for seed in 0..<40 {
-            let arts = BouquetGenerator.flowers(for: DayLog(date: day(0), symptoms: ["a", "b", "c", "d", "e"], seed: seed)).map(\.art)
+            let arts = BouquetGenerator.flowers(for: log(planted: 5, seed: seed)).map(\.art)
             for (position, art) in arts.enumerated() where BouquetGenerator.softArts.contains(art) {
                 XCTAssertTrue(BouquetGenerator.backPositions.contains(position), "seed \(seed): soft art \(art) at \(position)")
             }
@@ -86,7 +143,7 @@ final class CycleTests: XCTestCase {
     }
 
     func testSameLogAlwaysRegrowsTheSameBouquet() {
-        let log = DayLog(date: day(0), symptoms: ["period", "low", "anxious"], skipped: ["moody", "irritable"], seed: 42)
+        let log = log(planted: 5, seed: 42)
         let first = BouquetGenerator.flowers(for: log)
         let second = BouquetGenerator.flowers(for: log)
         XCTAssertEqual(first.count, 5)
@@ -94,6 +151,25 @@ final class CycleTests: XCTestCase {
         XCTAssertEqual(first.map(\.heightOffset), second.map(\.heightOffset))
         XCTAssertEqual(Set(first.map(\.art)).count, 5, "a bouquet shouldn't repeat a flower")
         XCTAssertTrue(first.allSatisfy { (1...BouquetGenerator.artCount).contains($0.art) })
-        XCTAssertTrue(log.isComplete)
+    }
+
+    func testNothingTodayPlantsASeedAndStillCounts() {
+        var log = DayLog(date: day(0), seed: 3)
+        log.nothingToday = true
+        log.completed = true
+        XCTAssertTrue(BouquetGenerator.flowers(for: log).isEmpty)
+        XCTAssertTrue(BouquetStyle(log: log).hasSeed)
+        XCTAssertTrue(log.isLogged)
+    }
+
+    func testAnswersShapeTheBouquet() {
+        var log = DayLog(date: day(0), seed: 3)
+        log.flow = .heavy
+        log.energy = 5
+        log.symptoms = ["cramps", "bloating"]
+        let style = BouquetStyle(log: log)
+        XCTAssertEqual(style.colorDepth, 1)
+        XCTAssertGreaterThan(style.stemBoost, 0)
+        XCTAssertEqual(style.leaves, 2)
     }
 }

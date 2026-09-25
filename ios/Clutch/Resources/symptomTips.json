@@ -1,0 +1,70 @@
+{
+  "supportLink": {
+    "text": "Low for a while now? You don't have to carry it alone.",
+    "linkTitle": "Find support",
+    "url": "https://988lifeline.org"
+  },
+  "symptoms": {
+    "anxious": {
+      "tip": "Anxiety can rise in the days before a period for some people.",
+      "subject": "Your anxious days",
+      "plural": true,
+      "dayNoun": "anxious",
+      "action": { "kind": "breathe", "title": "Breathe for 60 seconds" }
+    },
+    "low": {
+      "tip": "Low days often cluster before a period. You're not imagining it.",
+      "subject": "Your low days",
+      "plural": true,
+      "dayNoun": "low",
+      "action": { "kind": "shareSoftDay", "title": "Send friends a soft day", "shareText": "Having a soft day today. Sending you one too." }
+    },
+    "irritable": {
+      "tip": "A shorter fuse before your period is really common.",
+      "subject": "Your snappy days",
+      "plural": true,
+      "dayNoun": "irritable",
+      "action": { "kind": "reminder", "title": "Remind me to take a break later", "afterMinutes": 90, "reminderBody": "Time for a little break. Step away for five minutes." }
+    },
+    "cramps": {
+      "tip": "Heat on your lower belly or back helps many people.",
+      "subject": "Your cramps",
+      "plural": true,
+      "dayNoun": "cramp",
+      "action": { "kind": "reminder", "title": "Remind me in 2 hours to note what helped", "afterMinutes": 120, "reminderBody": "How are the cramps? Note what helped, so Clutch can learn it." }
+    },
+    "bloating": {
+      "tip": "Bloating often peaks just before a period. Water and a short walk can help.",
+      "subject": "Your bloating",
+      "plural": false,
+      "dayNoun": "bloated",
+      "action": { "kind": "reminder", "title": "Water reminder", "afterMinutes": 60, "reminderBody": "Water break. A glass now can help with bloating." }
+    },
+    "headache": {
+      "tip": "Some people get headaches around their period. Water, rest, and a dim room can help.",
+      "subject": "Your headaches",
+      "plural": true,
+      "dayNoun": "headache",
+      "action": { "kind": "reminder", "title": "Remind me to check in later", "afterMinutes": 180, "reminderBody": "Checking in. How's the headache now?" }
+    },
+    "poor-sleep": {
+      "tip": "Sleep can get lighter before a period. A cooler room helps some people.",
+      "subject": "Your poor sleep",
+      "plural": false,
+      "dayNoun": "poor-sleep",
+      "action": { "kind": "reminder", "title": "Wind-down reminder tonight", "atHour": 21, "atMinute": 30, "reminderBody": "Time to wind down. Dim the lights and cool the room if you can." }
+    },
+    "cravings": {
+      "tip": "Cravings before a period are common. Having a snack you like on hand helps.",
+      "subject": "Your cravings",
+      "plural": true,
+      "dayNoun": "craving",
+      "action": { "kind": "addSnack", "title": "Add to my snack list" }
+    }
+  },
+  "laterActions": [
+    { "flag": "restock", "symptom": "cramps", "title": "Restock my supplies", "partner": true },
+    { "flag": "studyPlanner", "symptom": "poor-sleep", "title": "Move tomorrow's study block", "partner": false },
+    { "flag": "comfortDelivery", "symptom": "cramps", "title": "Get a comfort delivery", "partner": true }
+  ]
+}

@@ -35,11 +35,8 @@ struct NameEntryView: View {
             .ignoresSafeArea()
             .overlay(alignment: .top) {
                 VStack(spacing: 4) {
-                    // TODO: swap to the PF Pixelscript font once the licensed
-                    // file is added to Resources/Fonts and registered in
-                    // Info.plist.
                     Text("Your name")
-                        .font(.custom("PinyonScript-Regular", size: 44))
+                        .font(ClutchFont.nameHeading(size: 44))
                         .foregroundStyle(Color(red: 0.10, green: 0.10, blue: 0.12))
 
                     Text("scribble as you want")

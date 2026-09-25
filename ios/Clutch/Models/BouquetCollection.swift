@@ -4,19 +4,20 @@ import Foundation
 struct CollectedBouquet: Identifiable {
     let day: Date
     let flowers: [PlantedFlower]
+    var style: BouquetStyle = .plain
 
     var id: Date { day }
 }
 
-/// Every day she finishes the deck adds that day's bouquet to her
-/// collection; finishing on consecutive days builds a streak.
+/// Every day she finishes the deck (or taps "Nothing today") adds that
+/// day's bouquet to her collection; consecutive days build a streak.
 enum BouquetCollection {
     /// Newest first.
     static func load() -> [CollectedBouquet] {
         DayLogStore.allLogs()
-            .filter(\.isComplete)
+            .filter(\.completed)
             .reversed()
-            .map { CollectedBouquet(day: $0.date, flowers: BouquetGenerator.flowers(for: $0)) }
+            .map { CollectedBouquet(day: $0.date, flowers: BouquetGenerator.flowers(for: $0), style: BouquetStyle(log: $0)) }
     }
 
     /// Consecutive collected days ending today — or ending yesterday, so a

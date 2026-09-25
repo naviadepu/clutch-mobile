@@ -13,7 +13,7 @@ struct BouquetCollectionView: View {
 
     private static let backdrop = Color(hex: 0xEFEBE6)
     private static let card = Color(hex: 0xF7F4F0)
-    private static let ink = Color(red: 0.29, green: 0.23, blue: 0.20)
+    private static let ink = Color.ink
 
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
@@ -26,7 +26,7 @@ struct BouquetCollectionView: View {
                     header
 
                     if bouquets.isEmpty {
-                        Text("Finish today's cards to collect your first bouquet.")
+                        Text("Finish today's cards, or tap \u{201C}Nothing today\u{201D}, to collect your first bouquet.")
                             .font(.custom("Quicksand-Regular", size: 16))
                             .foregroundStyle(Self.ink.opacity(0.7))
                             .padding(.top, 40)
@@ -53,7 +53,7 @@ struct BouquetCollectionView: View {
                     .ignoresSafeArea()
                     .onTapGesture { closeShare() }
                     .overlay {
-                        PolaroidCard(flowers: sharing?.flowers ?? [], signature: signature, caption: caption(for: sharing), onClose: closeShare)
+                        PolaroidCard(flowers: sharing?.flowers ?? [], style: sharing?.style ?? .plain, signature: signature, caption: caption(for: sharing), onClose: closeShare)
                     }
                     .transition(.opacity)
             }
@@ -94,7 +94,7 @@ struct BouquetCollectionView: View {
 
     private func tile(for bouquet: CollectedBouquet) -> some View {
         VStack(spacing: 6) {
-            Bouquet(flowers: bouquet.flowers, reduceMotion: true, animatesIn: false, signature: signature)
+            Bouquet(flowers: bouquet.flowers, reduceMotion: true, animatesIn: false, signature: signature, style: bouquet.style)
                 .scaleEffect(0.26, anchor: .bottom)
                 .frame(width: 140, height: 160, alignment: .bottom)
                 .clipped()

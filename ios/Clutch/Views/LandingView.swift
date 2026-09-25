@@ -7,6 +7,8 @@ struct LandingView: View {
     @State private var floating = false
     @State private var readyToContinue = false
     @State private var goToNameEntry = false
+    /// Onboarded already: go straight to the Garden, never re-asking.
+    private let isReturning = CycleProfile.load()?.onboardingComplete ?? false
 
     var body: some View {
         LoopingVideoPlayer(resourceName: "background-1", resourceExtension: "mp4")
@@ -62,8 +64,10 @@ struct LandingView: View {
                 if readyToContinue { goToNameEntry = true }
             }
             .navigationDestination(isPresented: $goToNameEntry) {
-                NameEntryView()
-                    .toolbar(.hidden, for: .navigationBar)
+                Group {
+                    if isReturning { GardenView() } else { NameEntryView() }
+                }
+                .toolbar(.hidden, for: .navigationBar)
             }
     }
 }

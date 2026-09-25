@@ -3,12 +3,13 @@ import UIKit
 
 /// Everything the app knows about her, on one page: her name, where she is
 /// in her cycle, what she told onboarding, today's check-in and her streak.
-/// Reached from "See your details" under the finished bouquet. A first
-/// pass — the fuller profile is still to be designed.
+/// Reached from "See your details" under the finished bouquet. Every
+/// answer she's given — onboarding and the one-time cards — can be
+/// changed here. A first pass — the fuller profile is still to be designed.
 struct YouView: View {
     @Environment(\.dismiss) private var dismiss
 
-    private let profile = CycleProfile.load() ?? CycleProfile()
+    @State private var profile = CycleProfile.load() ?? CycleProfile()
     private let signature = SignatureStore.load()
     private let today = DayLogStore.load(for: .now)
     private let collection = BouquetCollection.load()
@@ -28,7 +29,7 @@ struct YouView: View {
 
                     card("Your cycle") {
                         if let cycle = cycleNow {
-                            row("Today", "Day \(cycle.day) of \(profile.effectiveCycleLength)")
+                            row("Today", "Day \(cycle.day)")
                             row("Next period", cycle.nextStart.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()), note: "estimate")
                             row("Last started", cycle.lastStart.formatted(.dateTime.month(.abbreviated).day()))
                         } else {
@@ -39,9 +40,14 @@ struct YouView: View {
                     }
 
                     card("Today") {
-                        row("Period", today?.flow.map { "\($0.title) flow" } ?? "Not logged", muted: today?.flow == nil)
+                        row("Period", periodToday, muted: today?.flow == nil)
+                        row("Mood", today?.mood.map { LevelScale.moodTitles[$0 - 1] } ?? "Not logged", muted: today?.mood == nil)
+                        row("Energy", today?.energy.map { LevelScale.energyTitles[$0 - 1] } ?? "Not logged", muted: today?.energy == nil)
                         row("Feelings", feelingsToday.isEmpty ? "None logged" : feelingsToday.joined(separator: ", "), muted: feelingsToday.isEmpty)
-                        row("Checked in", checkedInText, last: true)
+                        row("Checked in", checkedInText, last: snacks.isEmpty)
+                        if !snacks.isEmpty {
+                            row("Snack list", snacks.joined(separator: ", "), last: true)
+                        }
                     }
 
                     card("Your garden") {
@@ -49,9 +55,33 @@ struct YouView: View {
                         row("Bouquets", "\(collection.count) collected", last: true)
                     }
 
-                    card("About you") {
-                        row("Age", "\(profile.age)")
-                        row("Birth control", profile.birthControl.title, last: true)
+                    card("Your answers") {
+                        editRow("Age", profile.ageRange?.title ?? "Not set", options: AgeRange.allCases.map { ($0.title, $0) }) {
+                            profile.ageRange = $0
+                        }
+                        editRow("Cycle length", profile.cycleLength.map { "\($0) days" } ?? "Not sure",
+                                options: [("Not sure", nil)] + (20...45).map { ("\($0) days", Optional($0)) }) {
+                            profile.cycleLength = $0
+                        }
+                        editRow("Period length", profile.periodLength.map { "\($0) days" } ?? "Not sure",
+                                options: [("Not sure", nil)] + (1...10).map { ("\($0) day\($0 == 1 ? "" : "s")", Optional($0)) }) {
+                            answered(.periodLength)
+                            profile.periodLength = $0
+                        }
+                        editRow("Birth control", profile.birthControl?.title ?? "Not answered", options: BirthControl.allCases.map { ($0.title, $0) }) {
+                            answered(.birthControl)
+                            profile.birthControl = $0
+                        }
+                        editRow("You use", profile.products?.map(\.title).joined(separator: ", ") ?? "Not answered",
+                                options: PeriodProduct.allCases.map { ($0.title, $0) }) {
+                            answered(.products)
+                            profile.products = [$0]
+                        }
+                        editRow("Student", profile.isStudent.map { $0 ? "Yes" : "No" } ?? "Not answered", options: [("Yes", true), ("No", false)]) {
+                            answered(.student)
+                            profile.isStudent = $0
+                        }
+                        goalsRow
                     }
                 }
                 .padding(.horizontal, 24)
@@ -145,36 +175,86 @@ struct YouView: View {
         }
     }
 
+    // MARK: - Editing
+
+    /// The row's value opens a menu of choices; picking one saves straight away.
+    private func editRow<Value>(
+        _ label: String,
+        _ value: String,
+        options: [(String, Value)],
+        last: Bool = false,
+        onPick: @escaping (Value) -> Void
+    ) -> some View {
+        Menu {
+            ForEach(options.indices, id: \.self) { i in
+                Button(options[i].0) {
+                    onPick(options[i].1)
+                    profile.save()
+                }
+            }
+        } label: {
+            row(label, value, note: "tap to change", muted: value.hasPrefix("Not"), last: last)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var goalsRow: some View {
+        let goals = profile.goals ?? []
+        return Menu {
+            ForEach(HelpGoal.allCases) { goal in
+                Button {
+                    answered(.goals)
+                    var picked = Set(goals)
+                    if picked.contains(goal) { picked.remove(goal) } else { picked.insert(goal) }
+                    profile.goals = HelpGoal.allCases.filter(picked.contains)
+                    profile.save()
+                } label: {
+                    if goals.contains(goal) { Label(goal.title, systemImage: "checkmark") } else { Text(goal.title) }
+                }
+            }
+        } label: {
+            row("Help with", goals.isEmpty ? "Not answered" : goals.map(\.title).joined(separator: ", "),
+                note: "tap to change", muted: goals.isEmpty, last: true)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Answering here counts: the one-time card won't ask again.
+    private func answered(_ question: OneTimeQuestion) {
+        profile.oneTimeCards[question.id, default: OneTimeCardState()].answered = true
+    }
+
     // MARK: - Derived
+
+    private let snacks = InsightStore.snackList()
+
+    private var periodToday: String {
+        guard let flow = today?.flow else { return "Not logged" }
+        return flow == .noFlow ? "No period" : "\(flow.title) flow"
+    }
 
     private var streak: Int { BouquetCollection.streak(collectedDays: collection.map(\.day)) }
 
     private var feelingsToday: [String] {
-        (today?.symptoms ?? [])
-            .filter { $0 != Symptom.periodID }
-            .compactMap { id in Symptom.catalog.first { $0.id == id }?.label }
+        Symptom.catalog.filter { today?.said($0.id) == true }.map(\.label)
     }
 
     private var checkedInText: String {
-        let answered = today?.answeredCount ?? 0
-        let total = Symptom.catalog.count
-        return answered >= total ? "All \(total) cards" : "\(answered) of \(total) cards"
+        guard let today else { return "Not yet" }
+        if today.nothingToday { return "Nothing today" }
+        if today.completed { return "Done" }
+        return today.answeredCards.isEmpty ? "Not yet" : "\(today.answeredCards.count) cards so far"
     }
 
-    /// Where today falls, counting whole cycles on from the last start she
-    /// gave, and when the next one should begin.
+    /// Where today falls and when the next period should begin, from the
+    /// same engine the insights use.
     private var cycleNow: (day: Int, lastStart: Date, nextStart: Date)? {
-        guard let start = profile.lastPeriodStart else { return nil }
-        let calendar = Calendar.current
-        let length = profile.effectiveCycleLength
-        let first = calendar.startOfDay(for: start)
-        let todayStart = calendar.startOfDay(for: .now)
-        let elapsed = max(calendar.dateComponents([.day], from: first, to: todayStart).day ?? 0, 0)
-        let cyclesDone = elapsed / length
-        guard let lastStart = calendar.date(byAdding: .day, value: cyclesDone * length, to: first),
-              let nextStart = calendar.date(byAdding: .day, value: length, to: lastStart)
+        let engine = CycleEngine(logs: DayLogStore.allLogs(), profile: profile)
+        guard let start = engine.cycleStart(for: .now),
+              let day = engine.cycleDay(for: .now)
         else { return nil }
-        return (elapsed % length + 1, lastStart, nextStart)
+        let next = engine.nextStart(after: .now) ?? engine.day(engine.typicalCycleLength, from: start)
+        return (day, start, next)
     }
 }
 

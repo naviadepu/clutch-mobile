@@ -16,7 +16,7 @@ final class OnboardingInputTests: XCTestCase {
     }
 
     func testCalendarDateCanBeTapped() {
-        let app = launch("-question2")
+        let app = launch("-question3")
         let title = app.staticTexts["When did your last period start?"]
         XCTAssertTrue(title.waitForExistence(timeout: 10))
 
@@ -33,7 +33,7 @@ final class OnboardingInputTests: XCTestCase {
     }
 
     func testCycleLengthSliderDrags() {
-        let app = launch("-question3")
+        let app = launch("-question4")
         let title = app.staticTexts["How long is your cycle usually?"]
         XCTAssertTrue(title.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["28"].exists)

@@ -23,7 +23,7 @@ struct StartOrb: View {
                 radius: textRadius,
                 font: UIFont(name: "HelveticaNeue", size: 12) ?? .systemFont(ofSize: 12)
             )
-            .foregroundStyle(Color(red: 0.29, green: 0.23, blue: 0.20).opacity(0.7))
+            .foregroundStyle(Color.ink.opacity(0.7))
             .rotationEffect(.degrees(spin ? 360 : 0))
             .accessibilityHidden(true)
 

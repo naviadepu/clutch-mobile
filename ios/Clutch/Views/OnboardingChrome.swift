@@ -33,11 +33,11 @@ struct AuraArtwork: View {
     }
 }
 
-/// How far through the questions each screen is. The welcome, signature
-/// and Garden screens aren't questions, so they have no step and show no
-/// progress bar.
+/// How far through the questions each screen is. Name is question 1 but
+/// its screen is the scribble canvas, with no bar; the welcome, payoff and
+/// Garden screens aren't questions.
 enum OnboardingProgress {
-    static let total = 5
+    static let total = 4
 }
 
 /// One onboarding question on the aura page, with a glass arrow to move on

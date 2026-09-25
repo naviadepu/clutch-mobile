@@ -1,24 +1,27 @@
 import SwiftUI
 
-/// A symptom card styled like a crossword poster: a paper frame with small
+/// A deck card styled like a crossword poster: a paper frame with small
 /// header/footer captions, one of the grainy aura gradients as the "photo",
-/// a fine grid mapped over it, and the symptom spelled out in pink letter
-/// tiles that sit in the grid's cells.
-struct CrosswordCard: View {
-    let symptom: Symptom
+/// a fine grid mapped over it, and the card's word spelled out in pink
+/// letter tiles that sit in the grid's cells. Tap cards put their choices
+/// under the poster.
+struct CrosswordCard<Content: View>: View {
+    let word: String
+    let question: String
+    /// Which of the six aura photos sits behind the grid.
+    let aura: Int
+    var footer: String?
+    @ViewBuilder let content: Content
 
-    static let paper = Color(hex: 0xEEEAE6)
-    static let tilePink = Color(hex: 0xF4B8CE)
-    static let ink = Color.black.opacity(0.85)
-    private static let columns = 10
+    static var paper: Color { Color(hex: 0xEEEAE6) }
+    static var tilePink: Color { Color(hex: 0xF4B8CE) }
+    static var ink: Color { Color.black.opacity(0.85) }
+    private static var columns: Int { 10 }
 
-    private var backgroundName: String {
-        let index = Symptom.catalog.firstIndex(where: { $0.id == symptom.id }) ?? 0
-        return "card-aura-\(index % 6 + 1)"
-    }
+    private var backgroundName: String { "card-aura-\(aura % 6 + 1)" }
 
     private var words: [String] {
-        symptom.label.uppercased().split(separator: " ").map(String.init)
+        word.uppercased().split(separator: " ").map(String.init)
     }
 
     var body: some View {
@@ -31,22 +34,27 @@ struct CrosswordCard: View {
                 Text("Clutch")
             }
             .font(.custom("HelveticaNeue", size: 10))
-            .foregroundStyle(Self.ink)
 
-            Text(symptom.question)
+            Text(question)
                 .font(.custom("HelveticaNeue-Medium", size: 18))
                 .tracking(-0.4)
-                .foregroundStyle(Self.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
 
             GeometryReader { geo in
                 grid(size: geo.size)
             }
+            .clipped()
 
-            Text("swipe right to log  \u{2022}  left to skip")
-                .font(.custom("HelveticaNeue", size: 9))
-                .foregroundStyle(Self.ink.opacity(0.7))
+            content
+
+            if let footer {
+                Text(footer)
+                    .font(.custom("HelveticaNeue", size: 9))
+                    .opacity(0.7)
+            }
         }
+        .foregroundStyle(Self.ink)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(Self.paper, in: shape)
@@ -55,7 +63,7 @@ struct CrosswordCard: View {
 
     private func grid(size: CGSize) -> some View {
         let cell = size.width / CGFloat(Self.columns)
-        let rows = max(words.count + 2, Int(size.height / cell))
+        let rows = max(words.count, Int(size.height / cell))
         let gridHeight = CGFloat(rows) * cell
         let placements = place(words, rows: rows)
 
@@ -122,62 +130,17 @@ struct CrosswordCard: View {
     }
 }
 
-/// Shown in place of the period card after swiping right: pick flow from
-/// three pink crossword tiles.
-struct FlowPicker: View {
-    let onPick: (Flow) -> Void
-    let onBack: () -> Void
+/// Uses the shared paper, tile and ink colours without naming a content type.
+typealias CrosswordStyle = CrosswordCard<EmptyView>
 
-    var body: some View {
-        VStack(spacing: 16) {
-            HStack {
-                Text("\u{2018}today\u{2019}")
-                Spacer()
-                Text("Clutch")
-            }
-            .font(.custom("HelveticaNeue", size: 10))
-
-            Spacer(minLength: 0)
-
-            Text("How heavy is it?")
-                .font(.custom("HelveticaNeue-Medium", size: 22))
-                .tracking(-0.5)
-
-            HStack(spacing: 0) {
-                ForEach(Array(Flow.allCases.enumerated()), id: \.element) { index, flow in
-                    Button { onPick(flow) } label: {
-                        VStack(spacing: 8) {
-                            HStack(spacing: 2) {
-                                ForEach(0...index, id: \.self) { _ in
-                                    Image(systemName: "drop.fill")
-                                        .font(.system(size: 11))
-                                }
-                            }
-                            Text(flow.title.uppercased())
-                                .font(.custom("HelveticaNeue", size: 13))
-                                .tracking(1.5)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 20)
-                        .background(CrosswordCard.tilePink)
-                        .overlay(Rectangle().strokeBorder(.black.opacity(0.35), lineWidth: 0.6))
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(flow.title) flow")
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            Button("back", action: onBack)
-                .font(.custom("HelveticaNeue", size: 11))
-                .foregroundStyle(CrosswordCard.ink.opacity(0.7))
-        }
-        .foregroundStyle(CrosswordCard.ink)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(CrosswordCard.paper, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .shadow(color: .black.opacity(0.12), radius: 18, y: 10)
+extension CrosswordCard where Content == EmptyView {
+    /// A symptom swipe: the poster alone.
+    init(symptom: Symptom) {
+        self.init(
+            word: symptom.label,
+            question: symptom.question,
+            aura: Symptom.catalog.firstIndex { $0.id == symptom.id } ?? 0,
+            footer: "swipe right for yes  \u{2022}  left for no"
+        ) { EmptyView() }
     }
 }

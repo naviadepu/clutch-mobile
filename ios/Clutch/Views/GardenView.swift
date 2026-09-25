@@ -22,6 +22,8 @@ struct GardenView: View {
     /// Once the deck is done the bouquet grows to full size in the middle
     /// of the screen; while logging it sits smaller, low, under the cards.
     @State private var bouquetCentered = false
+    /// "Does this match you?" under today's line, once answered.
+    @State private var lineMatchAnswer: Bool?
 
     private var streak: Int { BouquetCollection.streak(collectedDays: collection.map(\.day)) }
 
@@ -29,10 +31,8 @@ struct GardenView: View {
         self.signature = signature ?? SignatureStore.load()
     }
 
-    /// The two-tone text palette used throughout: a near-black warm brown
-    /// for anything primary/active, a muted taupe for secondary labels.
-    private static let ink = Color(red: 0.29, green: 0.23, blue: 0.20)
-    private static let mutedInk = Color(red: 0.61, green: 0.54, blue: 0.50)
+    private static let ink = Color.ink
+    private static let mutedInk = Color.mutedInk
 
     @State private var selectedDockItem: DockItem = .garden
 
@@ -65,6 +65,10 @@ struct GardenView: View {
                             SwipeDeck(model: model, onCommit: handleCommit, onFinished: handleFinished)
                                 .padding(.horizontal, 28)
                         } else if model.hasBloomed {
+                            if model.todayLine.asksForMatch {
+                                lineMatchRow
+                                    .transition(.opacity)
+                            }
                             HStack(spacing: 12) {
                                 GardenChip(title: "Share bouquet", symbol: "square.and.arrow.up") {
                                     shareToday()
@@ -107,7 +111,7 @@ struct GardenView: View {
                     .ignoresSafeArea()
                     .onTapGesture { withAnimation(.easeInOut(duration: 0.25)) { showShare = false } }
                     .overlay {
-                        PolaroidCard(flowers: model.flowers, signature: signature, caption: shareCaption) {
+                        PolaroidCard(flowers: model.flowers, style: model.style, signature: signature, caption: shareCaption) {
                             withAnimation(.easeInOut(duration: 0.25)) { showShare = false }
                         }
                     }
@@ -181,9 +185,7 @@ struct GardenView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 
-            // Not derived from the saved cycle start yet, so the day is a
-            // placeholder.
-            Text("DAY 1")
+            Text(model.engine.cycleDay(for: .now).map { "DAY \($0)" } ?? "DAY \u{2014}")
                 .font(.custom("HelveticaNeue", size: 9))
                 .tracking(1.4)
                 .foregroundStyle(.black.opacity(0.5))
@@ -328,7 +330,7 @@ struct GardenView: View {
 
     private func miniBouquet(_ bouquet: CollectedBouquet) -> some View {
         VStack(spacing: 4) {
-            Bouquet(flowers: bouquet.flowers, reduceMotion: true, animatesIn: false, signature: signature)
+            Bouquet(flowers: bouquet.flowers, reduceMotion: true, animatesIn: false, signature: signature, style: bouquet.style)
                 .scaleEffect(0.11, anchor: .bottom)
                 .frame(width: 56, height: 62, alignment: .bottom)
                 .clipped()
@@ -351,16 +353,13 @@ struct GardenView: View {
         .offset(y: 20)
     }
 
-    private func handleCommit(keep: Bool, symptom: Symptom, flow: Flow?) {
-        if keep, let flow {
-            promptText = "Period logged, \(flow.rawValue) flow."
-        } else {
-            promptText = keep ? "\u{201C}\(symptom.label)\u{201D} bloomed." : "skipped."
-        }
+    private func handleCommit(_ prompt: String) {
+        promptText = prompt
     }
 
+    /// Today in one line, tying the whole log together.
     private func handleFinished() {
-        promptText = model.hasBloomed ? "Your bouquet today." : "A quiet day. Nothing planted."
+        promptText = model.hasBloomed ? InsightCopy.text(for: model.todayLine) : "A quiet day. Nothing planted."
         withAnimation(.easeInOut(duration: 0.3)) {
             collection = BouquetCollection.load()
         }
@@ -371,13 +370,15 @@ struct GardenView: View {
     private func shareToday() {
         guard model.hasBloomed else { return }
         let count = model.totalLoggedCount
-        shareCaption = count == 1 ? "1 thing bloomed today" : "\(count) things bloomed today"
+        shareCaption = model.flowers.isEmpty
+            ? "a seed planted today"
+            : (count == 1 ? "1 thing bloomed today" : "\(count) things bloomed today")
         withAnimation(.easeInOut(duration: 0.3)) { showShare = true }
     }
 
     private var flowerBed: some View {
         let scale: CGFloat = bouquetCentered ? 0.74 : 0.55
-        return Bouquet(flowers: model.flowers, reduceMotion: reduceMotion, signature: signature)
+        return Bouquet(flowers: model.flowers, reduceMotion: reduceMotion, signature: signature, style: model.style)
             .scaleEffect(scale, anchor: .bottom)
             .frame(width: Bouquet.size.width, height: Bouquet.size.height * scale, alignment: .bottom)
             .frame(maxWidth: .infinity)
@@ -390,6 +391,42 @@ struct GardenView: View {
             .accessibilityAddTraits(model.isFinished && model.hasBloomed ? .isButton : [])
     }
 
+    @ViewBuilder
+    private var lineMatchRow: some View {
+        if let lineMatchAnswer {
+            Text(lineMatchAnswer ? "Glad it fits." : "Thanks, Clutch will keep learning.")
+                .font(.system(size: 13, design: .serif).italic())
+                .foregroundStyle(Self.mutedInk)
+        } else {
+            HStack(spacing: 10) {
+                Text("Does this match you?")
+                    .font(.system(size: 13, design: .serif).italic())
+                    .foregroundStyle(Self.ink.opacity(0.8))
+                ForEach([true, false], id: \.self) { matches in
+                    Button(matches ? "Yes" : "No") { answerLineMatch(matches) }
+                        .font(.custom("HelveticaNeue", size: 12))
+                        .foregroundStyle(Self.ink)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(.white.opacity(0.35), in: Capsule())
+                        .overlay(Capsule().strokeBorder(.white.opacity(0.8), lineWidth: 0.8))
+                }
+            }
+        }
+    }
+
+    private func answerLineMatch(_ matches: Bool) {
+        let line = model.todayLine
+        let kind: String
+        switch line {
+        case .knownStretch: kind = "knownStretch"
+        case .goodWindow: kind = "goodWindow"
+        default: kind = "other"
+        }
+        InsightStore.record(.init(date: .now, insight: "today.\(kind)", text: InsightCopy.text(for: line), matches: matches))
+        withAnimation(.easeInOut(duration: 0.2)) { lineMatchAnswer = matches }
+    }
+
     private var gardenSummaryLabel: String {
         let count = model.totalLoggedCount
         return count == 0 ? "Your garden: empty" : "Your garden: \(count) flower\(count == 1 ? "" : "s")"
@@ -399,63 +436,76 @@ struct GardenView: View {
 // MARK: - Swipe deck
 
 /// The stacked card deck: one live card up front, two more peeking behind
-/// it for depth, plus the ✕ / ♥ tap targets that mirror the swipe gesture.
+/// it for depth. Symptom cards swipe (right yes, left no, with ✕ / ♥ tap
+/// targets that mirror the gesture); the rest are tapped. A yes can flip
+/// the card over to an insight. "Nothing today" sits under every card.
 private struct SwipeDeck: View {
     @ObservedObject var model: GardenModel
-    let onCommit: (_ keep: Bool, _ symptom: Symptom, _ flow: Flow?) -> Void
+    let onCommit: (_ prompt: String) -> Void
     let onFinished: () -> Void
 
     @State private var dragOffset: CGSize = .zero
     @State private var cardOpacity: Double = 1
-    /// Set after a right swipe on the period card, while flow is picked.
-    @State private var askingFlow = false
+    /// The card turned over after a yes swipe, until she moves on.
+    @State private var flip: FlipInsight?
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 18) {
             ZStack {
-                ForEach(Array(model.upcoming(3).enumerated()).reversed(), id: \.element.id) { pair in
-                    card(symptom: pair.element, depth: pair.offset)
+                if let flip {
+                    InsightFlipCard(flip: flip, flowers: model.flowers, style: model.style, onContinue: endFlip)
+                        .frame(height: 300)
+                        .offset(dragOffset)
+                        .opacity(cardOpacity)
+                        .id(flip.id)
+                } else {
+                    ForEach(Array(model.upcoming(3).enumerated()).reversed(), id: \.element.id) { pair in
+                        card(pair.element, depth: pair.offset)
+                    }
                 }
             }
             .frame(height: 316)
 
-            if let symptom = model.currentSymptom, !askingFlow {
+            if flip == nil, case let .symptom(symptom) = model.currentCard {
                 HStack(spacing: 36) {
-                    tapButton(systemName: "xmark", tint: Color(red: 0.61, green: 0.54, blue: 0.50)) {
-                        commit(false, symptom: symptom)
+                    tapButton(systemName: "xmark", tint: .mutedInk) {
+                        swipe(symptom, yes: false)
                     }
-                    .accessibilityLabel("Skip \(symptom.label)")
+                    .accessibilityLabel("No \(symptom.label)")
 
                     tapButton(systemName: "heart.fill", tint: .white, background: Color.matcha) {
-                        log(symptom)
+                        swipe(symptom, yes: true)
                     }
-                    .accessibilityLabel("Log \(symptom.label)")
+                    .accessibilityLabel("Yes, \(symptom.label)")
                 }
+            }
+
+            if flip == nil && !model.isFinished {
+                Button(action: nothingToday) {
+                    Text("Nothing today")
+                        .font(.custom("HelveticaNeue", size: 12))
+                        .foregroundStyle(Color.mutedInk)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .overlay(Capsule().strokeBorder(Color.mutedInk.opacity(0.6), lineWidth: 0.8))
+                }
+                .buttonStyle(.plain)
             }
         }
     }
 
-    private func card(symptom: Symptom, depth: Int) -> some View {
+    // MARK: Cards
+
+    private func card(_ deckCard: DeckCard, depth: Int) -> some View {
         let isTop = depth == 0
 
         return ZStack {
-            CrosswordCard(symptom: symptom)
+            content(for: deckCard)
+                .allowsHitTesting(isTop)
 
-            if isTop {
-                stamp("LOG", tint: Color.matcha, alignment: .topTrailing, opacity: logStampOpacity)
-                stamp("SKIP", tint: Color(red: 0.61, green: 0.54, blue: 0.50), alignment: .topLeading, opacity: skipStampOpacity)
-            }
-
-            if isTop && askingFlow {
-                FlowPicker(
-                    onPick: { flow in
-                        commit(true, symptom: symptom, flow: flow)
-                    },
-                    onBack: {
-                        withAnimation(.easeInOut(duration: 0.25)) { askingFlow = false }
-                    }
-                )
-                .transition(.opacity)
+            if isTop && deckCard.isSwipe {
+                stamp("YES", tint: Color.matcha, alignment: .topTrailing, opacity: yesStampOpacity)
+                stamp("NO", tint: .mutedInk, alignment: .topLeading, opacity: noStampOpacity)
             }
         }
         .frame(height: 300)
@@ -463,18 +513,59 @@ private struct SwipeDeck: View {
         .scaleEffect(isTop ? 1 : 1 - CGFloat(depth) * 0.04)
         .offset(y: isTop ? 0 : CGFloat(depth) * 10)
         .offset(isTop ? dragOffset : .zero)
-        .rotationEffect(.degrees(isTop ? dragOffset.width / 18 : 0))
+        .rotationEffect(.degrees(isTop && deckCard.isSwipe ? dragOffset.width / 18 : 0))
         .opacity(isTop ? cardOpacity : 1)
         .zIndex(isTop ? 10 : Double(9 - depth))
-        .gesture(isTop && !askingFlow ? dragGesture(for: symptom) : nil)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(isTop ? symptom.label : "")
-        .accessibilityAddTraits(isTop ? .isButton : [])
-        .accessibilityActions {
-            if isTop {
-                Button("Log \(symptom.label)") { log(symptom) }
-                Button("Skip \(symptom.label)") { commit(false, symptom: symptom) }
+        .gesture(isTop ? swipeGesture(for: deckCard) : nil)
+        .accessibilityHidden(!isTop)
+    }
+
+    @ViewBuilder
+    private func content(for deckCard: DeckCard) -> some View {
+        switch deckCard {
+        case let .symptom(symptom):
+            CrosswordCard(symptom: symptom)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(symptom.question)
+                .accessibilityAction(named: "Yes") { swipe(symptom, yes: true) }
+                .accessibilityAction(named: "No") { swipe(symptom, yes: false) }
+
+        case .flow:
+            FlowCard { flow in
+                answer(flow == .noFlow ? "No period today." : "Period logged, \(flow.rawValue) flow.") {
+                    model.answerFlow(flow)
+                }
             }
+
+        case .mood:
+            LevelCard(word: "mood", aura: 0, question: "How's your mood today?", titles: LevelScale.moodTitles) { level in
+                answer("Mood: \(LevelScale.moodTitles[level - 1].lowercased()).") { model.answerMood(level) }
+            }
+
+        case .energy:
+            LevelCard(word: "energy", aura: 1, question: "How's your energy today?", titles: LevelScale.energyTitles) { level in
+                answer("Energy: \(LevelScale.energyTitles[level - 1].lowercased()).") { model.answerEnergy(level) }
+            }
+
+        case .helped:
+            HelpedCard(question: "Today was a lot. What helped?", options: Helper.options) { helpers in
+                answer("Noted what helped.") { model.answerHelped(helpers) }
+            }
+
+        case let .followUp(day, symptomIDs, daysAgo):
+            HelpedCard(
+                question: InsightCopy.followUpQuestion(symptomIDs: symptomIDs, daysAgo: daysAgo, day: day),
+                options: Helper.options + [.nothingReally]
+            ) { helpers in
+                answer("Thanks. Clutch is learning what helps you.") { model.answerFollowUp(helpers, about: day) }
+            }
+
+        case let .oneTime(question):
+            OneTimeCard(
+                question: question,
+                onAnswer: { update in answer("Saved.") { model.answerOneTime(question, update: update) } },
+                onSkip: { answer("Skipped for now.") { model.skipOneTime(question) } }
+            )
         }
     }
 
@@ -492,19 +583,22 @@ private struct SwipeDeck: View {
             .allowsHitTesting(false)
     }
 
-    private var logStampOpacity: Double { min(1, max(0, dragOffset.width - 20) / 70) }
-    private var skipStampOpacity: Double { min(1, max(0, -dragOffset.width - 20) / 70) }
+    private var yesStampOpacity: Double { min(1, max(0, dragOffset.width - 20) / 70) }
+    private var noStampOpacity: Double { min(1, max(0, -dragOffset.width - 20) / 70) }
 
-    private func dragGesture(for symptom: Symptom) -> some Gesture {
+    /// Only symptom cards swipe; mood and energy use their own drag.
+    private func swipeGesture(for deckCard: DeckCard) -> some Gesture {
         DragGesture()
             .onChanged { value in
+                guard deckCard.isSwipe else { return }
                 dragOffset = CGSize(width: value.translation.width, height: value.translation.height * 0.35)
             }
             .onEnded { value in
+                guard case let .symptom(symptom) = deckCard else { return }
                 if value.translation.width > 88 {
-                    log(symptom)
+                    swipe(symptom, yes: true)
                 } else if value.translation.width < -88 {
-                    commit(false, symptom: symptom)
+                    swipe(symptom, yes: false)
                 } else {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { dragOffset = .zero }
                 }
@@ -529,34 +623,71 @@ private struct SwipeDeck: View {
         .buttonStyle(.plain)
     }
 
-    /// A right swipe / heart. The period card first asks for flow; every
-    /// other card logs straight away.
-    private func log(_ symptom: Symptom) {
-        guard symptom.asksForFlow else {
-            commit(true, symptom: symptom)
+    // MARK: Answering
+
+    /// A yes that has something to say turns the card over; otherwise the
+    /// card flies off the way it was swiped.
+    private func swipe(_ symptom: Symptom, yes: Bool) {
+        guard yes else {
+            flyAway(toRight: false, prompt: "No \(symptom.label) today.") { model.answerSymptom(symptom, yes: false) }
             return
         }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+        let prompt = "\u{201C}\(symptom.label)\u{201D} bloomed."
+        guard let insight = model.insightIfYes(symptom) else {
+            flyAway(toRight: true, prompt: prompt) { model.answerSymptom(symptom, yes: true) }
+            return
+        }
+        onCommit(prompt)
+        model.answerSymptom(symptom, yes: true)
+        model.markShown(insight)
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { dragOffset = .zero }
+        flip = insight
+    }
+
+    private func endFlip() {
+        withAnimation(.easeIn(duration: 0.35)) {
+            dragOffset = CGSize(width: 520, height: 40)
+            cardOpacity = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            flip = nil
             dragOffset = .zero
-            askingFlow = true
+            cardOpacity = 1
+            if model.isFinished { onFinished() }
         }
     }
 
-    private func commit(_ keep: Bool, symptom: Symptom, flow: Flow? = nil) {
-        let flyDistance: CGFloat = keep ? 520 : -520
-        withAnimation(.easeIn(duration: 0.4)) {
-            dragOffset = CGSize(width: flyDistance, height: 40)
+    /// Tap cards lift up and away.
+    private func answer(_ prompt: String, apply: @escaping () -> Void) {
+        withAnimation(.easeIn(duration: 0.3)) {
+            dragOffset = CGSize(width: 0, height: -60)
             cardOpacity = 0
         }
-        onCommit(keep, symptom, flow)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            if keep { model.logCurrent(flow: flow) } else { model.skipCurrent() }
+        onCommit(prompt)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            apply()
             dragOffset = .zero
             cardOpacity = 1
-            askingFlow = false
             if model.isFinished { onFinished() }
         }
+    }
+
+    private func flyAway(toRight: Bool, prompt: String?, apply: @escaping () -> Void) {
+        withAnimation(.easeIn(duration: 0.4)) {
+            dragOffset = CGSize(width: toRight ? 520 : -520, height: 40)
+            cardOpacity = 0
+        }
+        if let prompt { onCommit(prompt) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            apply()
+            dragOffset = .zero
+            cardOpacity = 1
+            if model.isFinished { onFinished() }
+        }
+    }
+
+    private func nothingToday() {
+        answer("Seed planted.") { model.nothingToday() }
     }
 }
 
@@ -567,6 +698,7 @@ private struct SwipeDeck: View {
 /// underneath.
 struct PolaroidCard: View {
     let flowers: [PlantedFlower]
+    var style: BouquetStyle = .plain
     /// When there is one, the card offers to put her name on the bouquet.
     let signature: UIImage?
     let caption: String
@@ -593,16 +725,16 @@ struct PolaroidCard: View {
             VStack(spacing: 4) {
                 Text("Share your bouquet")
                     .font(.custom("PinyonScript-Regular", size: 32))
-                    .foregroundStyle(Color(red: 0.29, green: 0.23, blue: 0.20))
+                    .foregroundStyle(Color.ink)
                 Text(caption)
                     .font(.system(size: 13, design: .serif).italic())
-                    .foregroundStyle(Color(red: 0.61, green: 0.54, blue: 0.50))
+                    .foregroundStyle(Color.mutedInk)
             }
 
             if signature != nil {
                 Toggle("Include my name", isOn: $includeName)
                     .font(.system(size: 14, design: .serif).italic())
-                    .foregroundStyle(Color(red: 0.29, green: 0.23, blue: 0.20))
+                    .foregroundStyle(Color.ink)
                     .tint(Color(hex: 0xD68EA5))
                     .frame(width: 220)
             }
@@ -634,7 +766,7 @@ struct PolaroidCard: View {
         .shadow(color: .black.opacity(0.3), radius: 26, y: 16)
     }
 
-    private static let ink = Color(red: 0.29, green: 0.23, blue: 0.20)
+    private static let ink = Color.ink
 
     /// One tap to each place she's likely to post it. Story and Messages
     /// fall back to the share sheet when they can't open directly; TikTok
@@ -682,7 +814,7 @@ struct PolaroidCard: View {
 
     private func render() {
         saved = false
-        image = BouquetSnapshot.image(of: flowers, signature: includeName ? signature : nil)
+        image = BouquetSnapshot.image(of: flowers, signature: includeName ? signature : nil, style: style)
     }
 }
 
@@ -744,7 +876,7 @@ private struct GardenChip: View {
         Button(action: action) {
             Label(title, systemImage: symbol)
                 .font(.custom("HelveticaNeue-Medium", size: 14))
-                .foregroundStyle(Color(red: 0.29, green: 0.23, blue: 0.20))
+                .foregroundStyle(Color.ink)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(.ultraThinMaterial, in: Capsule())

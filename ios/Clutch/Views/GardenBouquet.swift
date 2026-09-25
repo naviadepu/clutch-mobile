@@ -6,7 +6,7 @@ import SwiftUI
 /// each washed in a soft blush-to-lavender tint, with a few sprigs of
 /// greenery, all held in a photographed newspaper wrap. When she's signed
 /// her name, it's on a paper tag tucked into the front. Each card answered
-/// adds a flower.
+/// adds a flower; `style` lets the day's answers shape it.
 struct Bouquet: View {
     let flowers: [PlantedFlower]
     let reduceMotion: Bool
@@ -14,6 +14,7 @@ struct Bouquet: View {
     var animatesIn = true
     /// Her onboarding scribble, for the tag. No tag without one.
     var signature: UIImage? = nil
+    var style: BouquetStyle = .plain
 
     static let size = CGSize(width: 380, height: 600)
     /// Where every stem meets, hidden inside the wrap.
@@ -53,6 +54,11 @@ struct Bouquet: View {
 
                 Greenery(reduceMotion: reduceMotion, animatesIn: animatesIn)
                     .zIndex(-1)
+
+                if style.leaves > 0 {
+                    SymptomLeaves(count: style.leaves)
+                        .zIndex(0.5)
+                }
             }
 
             ForEach(Array(flowers.enumerated()), id: \.element.id) { index, flower in
@@ -61,7 +67,8 @@ struct Bouquet: View {
                     flower: flower,
                     slot: slot,
                     reduceMotion: reduceMotion,
-                    animatesIn: animatesIn
+                    animatesIn: animatesIn,
+                    style: style
                 )
                 .zIndex(Double(slot.depth))
             }
@@ -75,6 +82,15 @@ struct Bouquet: View {
                     Wrap()
                 }
                 .zIndex(10)
+            }
+
+            if style.hasSeed {
+                PlantedSeed()
+                    .position(
+                        x: flowers.isEmpty ? Self.knot.x : Wrap.frame.minX - 6,
+                        y: Wrap.frame.maxY - 14
+                    )
+                    .zIndex(11)
             }
         }
         .frame(width: Self.size.width, height: Self.size.height)
@@ -106,14 +122,16 @@ private struct PhotoFlower: View {
     let flower: PlantedFlower
     let slot: Slot
     let reduceMotion: Bool
+    let style: BouquetStyle
 
     @State private var settled: Bool
     @State private var swayed = false
 
-    init(flower: PlantedFlower, slot: Slot, reduceMotion: Bool, animatesIn: Bool) {
+    init(flower: PlantedFlower, slot: Slot, reduceMotion: Bool, animatesIn: Bool, style: BouquetStyle) {
         self.flower = flower
         self.slot = slot
         self.reduceMotion = reduceMotion
+        self.style = style
         _settled = State(initialValue: !animatesIn)
     }
 
@@ -123,7 +141,8 @@ private struct PhotoFlower: View {
         let width = height * (FlowerArt.aspect[flower.art] ?? 0.66)
         let rawBase = FlowerArt.stemBaseX[flower.art] ?? 0.5
         let baseX = flower.flipped ? 1 - rawBase : rawBase
-        let lift = slot.lift
+        // Energy lengthens (or shortens) the stems.
+        let lift = max(0, slot.lift + style.stemBoost)
         let degrees = slot.angle + flower.tilt + (swayed ? 0.7 : -0.7)
 
         // Everything is laid out upright on the knot, then turned about it,
@@ -136,7 +155,7 @@ private struct PhotoFlower: View {
                     .position(x: knot.x, y: knot.y - lift / 2)
             }
 
-            DreamyWash(flower: flower, photo: photo)
+            DreamyWash(flower: flower, photo: photo, depth: style.colorDepth)
                 .shadow(color: Color(hex: 0xA85A74).opacity(0.18), radius: 8, y: 4)
                 .frame(width: width, height: height)
                 .position(x: knot.x - (baseX - 0.5) * width, y: knot.y - lift - height / 2)
@@ -169,6 +188,8 @@ private struct PhotoFlower: View {
 private struct DreamyWash<Photo: View>: View {
     let flower: PlantedFlower
     let photo: Photo
+    /// 0…1 from the day's flow: a heavier day, a deeper blush.
+    var depth: Double = 0
 
     private static var blush: Color { Color(hex: 0xF7B3C6) }
     private static var lavender: Color { Color(hex: 0xC4B3EE) }
@@ -191,7 +212,7 @@ private struct DreamyWash<Photo: View>: View {
             .overlay { wash.mask(Self.petals).blendMode(.softLight) }
             // Soft light barely moves near-white petals; a whisper of
             // multiply lets pale blooms pick up the tint too.
-            .overlay { wash.mask(Self.petals).opacity(0.22).blendMode(.multiply) }
+            .overlay { wash.mask(Self.petals).opacity(0.22 + 0.28 * depth).blendMode(.multiply) }
             .overlay { Self.tipGlow.blendMode(.screen) }
             .mask(photo)
             .compositingGroup()
@@ -384,13 +405,74 @@ private struct Sprig: View {
     }
 }
 
+// MARK: - Symptom leaves and the seed
+
+/// One leaf for each symptom she said yes to, fanned along the rim of the
+/// wrap between the flowers, in the sprigs' greens.
+private struct SymptomLeaves: View {
+    let count: Int
+
+    var body: some View {
+        let knot = Bouquet.knot
+        Canvas { context, _ in
+            for i in 0..<count {
+                // Spread across the opening, alternating sides from the middle.
+                let step = Double((i + 1) / 2) * (i.isMultiple(of: 2) ? 1 : -1)
+                let angle = step * 14 + 4
+                var leaf = context
+                leaf.translateBy(x: knot.x, y: knot.y)
+                leaf.rotate(by: .degrees(angle))
+                leaf.translateBy(x: 0, y: -132)
+                leaf.rotate(by: .degrees(angle * 0.6))
+                leaf.fill(
+                    Path(ellipseIn: CGRect(x: -5, y: -26, width: 10, height: 26)),
+                    with: .linearGradient(
+                        Gradient(colors: [Color(hex: 0xA9B894), Color(hex: 0x7C8D69)]),
+                        startPoint: CGPoint(x: 0, y: -26), endPoint: .zero
+                    )
+                )
+            }
+        }
+        .frame(width: Bouquet.size.width, height: Bouquet.size.height)
+    }
+}
+
+/// "Nothing today": a seed just planted, with a first sprout.
+private struct PlantedSeed: View {
+    var body: some View {
+        ZStack {
+            Ellipse()
+                .fill(.black.opacity(0.14))
+                .frame(width: 44, height: 8)
+                .blur(radius: 4)
+                .offset(y: 10)
+            Ellipse()
+                .fill(LinearGradient(colors: [Color(hex: 0x8A6A55), Color.ink], startPoint: .top, endPoint: .bottom))
+                .frame(width: 18, height: 12)
+                .offset(y: 4)
+            Capsule()
+                .fill(Color(hex: 0x7F8E6C))
+                .frame(width: 1.6, height: 14)
+                .offset(y: -6)
+            ForEach([-1.0, 1.0], id: \.self) { side in
+                Ellipse()
+                    .fill(Color(hex: 0x9CAC87))
+                    .frame(width: 5, height: 10)
+                    .rotationEffect(.degrees(side * 50))
+                    .offset(x: side * 4, y: -13)
+            }
+        }
+        .frame(width: 48, height: 40)
+    }
+}
+
 /// Renders a bouquet to a square image for sharing.
 @MainActor
 enum BouquetSnapshot {
-    static func image(of flowers: [PlantedFlower], signature: UIImage? = nil) -> UIImage? {
+    static func image(of flowers: [PlantedFlower], signature: UIImage? = nil, style: BouquetStyle = .plain) -> UIImage? {
         let content = ZStack {
             BlushGradient()
-            Bouquet(flowers: flowers, reduceMotion: true, animatesIn: false, signature: signature)
+            Bouquet(flowers: flowers, reduceMotion: true, animatesIn: false, signature: signature, style: style)
                 .scaleEffect(0.53)
                 .offset(y: -2)
         }
