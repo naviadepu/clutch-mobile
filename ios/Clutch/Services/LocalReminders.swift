@@ -5,20 +5,35 @@ import UserNotifications
 /// and delivered on the device, nothing sent anywhere. Asks permission the
 /// first time one is used.
 enum LocalReminders {
+    /// A one-off reminder at a set time.
+    @discardableResult
+    static func schedule(body: String, at date: Date, now: Date = .now) async -> Bool {
+        guard await authorized() else { return false }
+        let content = UNMutableNotificationContent()
+        content.title = "Clutch"
+        content.body = body
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(date.timeIntervalSince(now), 1), repeats: false)
+        return (try? await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
+        )) != nil
+    }
+
+    /// Asks the first time; `false` if she's said no.
+    private static func authorized() async -> Bool {
+        let center = UNUserNotificationCenter.current()
+        switch await center.notificationSettings().authorizationStatus {
+        case .notDetermined: return (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+        case .denied: return false
+        default: return true
+        }
+    }
+
     /// Returns whether it was scheduled (`false` if she declined).
     @discardableResult
     static func schedule(_ action: SymptomTips.Action, now: Date = .now) async -> Bool {
         let center = UNUserNotificationCenter.current()
-        let settings = await center.notificationSettings()
-        switch settings.authorizationStatus {
-        case .notDetermined:
-            let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
-            guard granted else { return false }
-        case .denied:
-            return false
-        default:
-            break
-        }
+        guard await authorized() else { return false }
 
         let content = UNMutableNotificationContent()
         content.title = "Clutch"

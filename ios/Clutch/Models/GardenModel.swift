@@ -86,6 +86,8 @@ struct BouquetStyle: Equatable {
     var stemBoost: CGFloat = 0
     var leaves = 0
     var hasSeed = false
+    /// A streak milestone or a full cycle: one glowing extra flower.
+    var hasSpecialFlower = false
 
     static let plain = BouquetStyle()
 
@@ -101,32 +103,15 @@ struct BouquetStyle: Equatable {
         stemBoost = log.energy.map { CGFloat($0 - 3) * 10 } ?? 0
         leaves = min(log.symptoms.count, Symptom.catalog.count)
         hasSeed = log.nothingToday
+        hasSpecialFlower = log.milestone != nil
     }
 }
 
-/// What the card back shows after a yes swipe.
-struct FlipInsight: Identifiable, Equatable {
-    let id = UUID()
-    let symptom: Symptom
-    /// `nil` when only the support line is left to say.
-    let insight: CycleEngine.SymptomInsight?
-    let text: String
-    let action: SymptomTips.Action?
-    let laterActions: [String]
-    /// Five or more low days in a row.
-    let showsSupport: Bool
-
-    /// Tiers 3 and 4 ask "Does this match you?".
-    var asksForMatch: Bool { (insight?.tier ?? 0) >= 3 }
-
-    static func == (lhs: FlipInsight, rhs: FlipInsight) -> Bool { lhs.id == rhs.id }
-}
-
-/// Drives the Garden screen: today's deck, progress through it, and the
-/// flowers answering grows — every card answered plants one, whatever the
-/// answer, so showing up counts. "Nothing today" ends the log in one tap
-/// and plants a seed instead. A stored per-day seed keeps the bouquet
-/// deterministic, and today's progress is restored on relaunch.
+/// Drives the Garden screen: today's deck (four cards at most), progress
+/// through it, and the flowers answering grows — every card answered or
+/// swiped past plants one, so showing up counts. "Nothing today" ends the
+/// log in one tap and plants a seed instead. A stored per-day seed keeps
+/// the bouquet deterministic, and today's progress is restored on relaunch.
 @MainActor
 final class GardenModel: ObservableObject {
     @Published private(set) var deck: [DeckCard]
@@ -138,46 +123,34 @@ final class GardenModel: ObservableObject {
     /// Every day before today, oldest first.
     private let history: [DayLog]
     private var generator: BouquetGenerator
-    private let yesterdayHadPeriod: Bool
-    private let tips = SymptomTips.shared
 
     var currentCard: DeckCard? { isFinished ? nil : deck[currentIndex] }
-    var isFinished: Bool { log.nothingToday || currentIndex >= deck.count }
+    var isFinished: Bool { log.completed || log.nothingToday || currentIndex >= deck.count }
     var hasBloomed: Bool { !flowers.isEmpty || log.nothingToday }
     var totalLoggedCount: Int { log.planted }
     var style: BouquetStyle { BouquetStyle(log: log) }
 
     /// The engine over everything, today's answers so far included.
     var engine: CycleEngine { CycleEngine(logs: history + [log], profile: profile) }
+    var planner: DeckPlanner { DeckPlanner(engine: engine) }
 
     init(date: Date = Date()) {
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: date)
-        var today = DayLogStore.loadOrCreate(for: date)
+        let today = DayLogStore.loadOrCreate(for: date)
         var profile = CycleProfile.load() ?? CycleProfile()
         let history = DayLogStore.allLogs().filter { calendar.startOfDay(for: $0.date) < dayStart }
-        // Onboarded before this was tracked: count from her first log, so
-        // the one-time questions she never saw start coming up.
+        // Onboarded before this was tracked: count from her first log.
         if profile.onboardingComplete && profile.onboardedOn == nil {
             profile.onboardedOn = history.first?.date ?? dayStart
             profile.save()
         }
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: dayStart).flatMap(DayLogStore.load(for:))
-
-        let planner = DeckPlanner(engine: CycleEngine(logs: history, profile: profile))
-        // The lead card is picked once a day, so a relaunch keeps it.
-        if today.leadCard == nil {
-            today.leadCard = DeckPlanner.code(for: planner.chooseLead(on: date))
-            DayLogStore.save(today)
-        }
-        var deck = planner.deck(lead: planner.lead(fromCode: today.leadCard ?? "", on: date), on: date)
-        if today.answeredCards.contains(DeckCard.helped.id) { deck.append(.helped) }
 
         self.history = history
         self.profile = profile
         self.log = today
-        self.deck = deck
-        yesterdayHadPeriod = yesterday?.flow?.isBleeding ?? yesterday?.legacySymptoms?.contains(Symptom.legacyPeriodID) ?? false
+        let planner = DeckPlanner(engine: CycleEngine(logs: history + [today], profile: profile))
+        deck = planner.deck(on: date)
 
         // Pick up where today left off: replaying the seed regrows the same
         // flowers and leaves the generator ready for the next one.
@@ -185,8 +158,10 @@ final class GardenModel: ObservableObject {
         let answered = Set(today.answeredCards)
         currentIndex = today.completed ? deck.count : (deck.firstIndex { !answered.contains($0.id) } ?? deck.count)
         flowers = (0..<min(today.planted, BouquetGenerator.maxFlowers)).map { _ in generator.next() }
-        addHelpedIfHardDay()
     }
+
+    /// Chips in her order: most common first once there are three weeks.
+    var chipOrder: [Symptom] { planner.symptomOrder(on: log.date) }
 
     func upcoming(_ count: Int) -> [DeckCard] {
         guard !isFinished else { return [] }
@@ -194,12 +169,6 @@ final class GardenModel: ObservableObject {
     }
 
     // MARK: - Answers
-
-    func answerFlow(_ flow: Flow) {
-        log.flow = flow
-        if flow.isBleeding { recordPeriodStart() }
-        complete(.flow)
-    }
 
     func answerMood(_ level: Int) {
         log.mood = level
@@ -211,15 +180,24 @@ final class GardenModel: ObservableObject {
         complete(.energy)
     }
 
-    /// Right is yes, left is no.
-    func answerSymptom(_ symptom: Symptom, yes: Bool) {
-        if yes { log.symptoms.append(symptom.id) } else { log.skipped.append(symptom.id) }
-        complete(.symptom(symptom))
+    /// "Anything else?": the chips she picked are yes, the rest no. None
+    /// is an empty pick.
+    func answerChips(_ symptomIDs: [String]) {
+        log.symptoms = Symptom.catalog.map(\.id).filter(symptomIDs.contains)
+        log.skipped = Symptom.catalog.map(\.id).filter { !symptomIDs.contains($0) }
+        complete(.chips)
     }
 
-    func answerHelped(_ helpers: [Helper]) {
-        log.helped = helpers.map(\.rawValue)
-        complete(.helped)
+    func answerFlow(_ flow: Flow) {
+        log.flow = flow
+        complete(.flow)
+    }
+
+    /// "Ended" on the Flow card: today is the period's last day.
+    func answerPeriodEnded() {
+        log.periodEnded = true
+        log.flow = .noFlow
+        complete(.flow)
     }
 
     /// Saved to the day it's about, not today.
@@ -228,21 +206,13 @@ final class GardenModel: ObservableObject {
             earlier.helpedNextDay = helpers.map(\.rawValue)
             DayLogStore.save(earlier)
         }
-        if case let .some(card) = currentCard, case .followUp = card { complete(card) }
+        if let card = currentCard { complete(card) }
     }
 
-    func answerOneTime(_ question: OneTimeQuestion, update: (inout CycleProfile) -> Void) {
-        update(&profile)
-        profile.oneTimeCards[question.id, default: OneTimeCardState()].answered = true
-        profile.save()
-        complete(.oneTime(question))
-    }
-
-    /// Skipped once, it comes back in a week; skipped twice, it's gone.
-    func skipOneTime(_ question: OneTimeQuestion) {
-        profile.oneTimeCards[question.id, default: OneTimeCardState()].skips.append(log.date)
-        profile.save()
-        complete(.oneTime(question))
+    /// A swipe moves on without answering. Still counts as showing up.
+    func skipCurrent() {
+        guard let card = currentCard else { return }
+        complete(card)
     }
 
     /// Ends today's log in one tap. The day still counts for the streak,
@@ -253,35 +223,38 @@ final class GardenModel: ObservableObject {
         DayLogStore.save(log)
     }
 
-    /// The general tip counts toward its once-a-week limit once it's shown.
-    func markShown(_ flip: FlipInsight) {
-        if flip.insight == .general { InsightStore.markGeneralShown(flip.symptom.id, on: log.date) }
+    // MARK: - Period
+
+    /// "My period started" shows within 3 days of her predicted window.
+    var offersPeriodStart: Bool { engine.isNearPredictedPeriod(log.date) }
+    var isOnPeriod: Bool { engine.isOnPeriod(log.date) }
+
+    /// Today starts a new period. Flow becomes card 4 from now until she
+    /// taps Ended or her usual length passes.
+    func startPeriod() {
+        log.periodStarted = true
+        log.periodEnded = false
+        profile.lastPeriodStart = Calendar.current.startOfDay(for: log.date)
+        profile.save()
+        DayLogStore.save(log)
+        guard !log.completed, !log.nothingToday, !deck.contains(.flow) else { return }
+        // Flow is the first contextual rule, so it replaces a follow-up
+        // that hasn't been answered yet.
+        if let last = deck.last, case .followUp = last, !log.answeredCards.contains(last.id) {
+            deck.removeLast()
+        }
+        if deck.count < DeckCard.maxCards { deck.append(.flow) }
     }
+
+    // MARK: - After the log
 
     /// The one line under the bloomed bouquet.
     var todayLine: CycleEngine.TodayLine { engine.todayLine(for: log) }
 
-    /// What the card's back would say if she says yes to `symptom` — worked
-    /// out before answering, so the card can flip rather than fly off.
-    /// `nil` means nothing to flip for.
-    func insightIfYes(_ symptom: Symptom) -> FlipInsight? {
-        var withYes = log
-        withYes.symptoms.append(symptom.id)
-        let engine = CycleEngine(logs: history + [withYes], profile: profile)
-        let insight = engine.symptomInsight(
-            for: symptom.id, on: log.date, generalLastShown: InsightStore.generalLastShown(symptom.id)
-        )
-        let showsSupport = symptom.id == "low"
-            && engine.currentRun(of: "low", endingOn: log.date) >= InsightCopy.supportAfterLowDays
-        guard insight != nil || showsSupport, let entry = tips[symptom.id] else { return nil }
-        return FlipInsight(
-            symptom: symptom,
-            insight: insight,
-            text: insight.map { InsightCopy.text(for: $0, symptomID: symptom.id, tips: tips) } ?? entry.tip,
-            action: entry.action,
-            laterActions: tips.laterActions(for: symptom.id, profile: profile).map(\.title),
-            showsSupport: showsSupport
-        )
+    /// Marks today's milestone so the bouquet keeps its special flower.
+    func recordMilestone(_ milestone: String) {
+        log.milestone = milestone
+        DayLogStore.save(log)
     }
 
     // MARK: - Private
@@ -291,32 +264,8 @@ final class GardenModel: ObservableObject {
         log.planted += 1
         plant()
         currentIndex += 1
-        addHelpedIfHardDay()
         if currentIndex >= deck.count { log.completed = true }
         DayLogStore.save(log)
-    }
-
-    /// What helped joins the deck once the symptom swipes are done, if the
-    /// day turned out hard.
-    private func addHelpedIfHardDay() {
-        guard !deck.contains(.helped), !log.completed, !log.nothingToday else { return }
-        let swipesLeft = deck[min(currentIndex, deck.count)...].contains { $0.isSwipe }
-        guard !swipesLeft, engine.isHardDay(log) else { return }
-        deck.append(.helped)
-    }
-
-    /// Bleeding today gives an exact cycle start date — overriding an
-    /// estimate or an earlier "Not sure" — unless it's just another day of
-    /// a period that's already underway.
-    private func recordPeriodStart() {
-        guard let start = CycleProfile.newPeriodStart(
-            loggedOn: log.date,
-            yesterdayHadPeriod: yesterdayHadPeriod,
-            currentStart: profile.lastPeriodStart,
-            periodLength: profile.effectivePeriodLength
-        ) else { return }
-        profile.lastPeriodStart = start
-        profile.save()
     }
 
     private func plant() {

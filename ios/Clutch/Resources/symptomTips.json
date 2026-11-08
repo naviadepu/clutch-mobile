@@ -60,6 +60,13 @@
       "plural": true,
       "dayNoun": "craving",
       "action": { "kind": "addSnack", "title": "Add to my snack list" }
+    },
+    "stressed": {
+      "tip": "Stress can shift the timing of a period for some people. Logging it helps Clutch see if it does for you.",
+      "subject": "Your stressed days",
+      "plural": true,
+      "dayNoun": "stressed",
+      "action": { "kind": "breathe", "title": "Breathe for 60 seconds" }
     }
   },
   "laterActions": [

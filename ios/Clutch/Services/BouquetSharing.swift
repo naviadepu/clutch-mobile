@@ -73,8 +73,13 @@ enum BouquetSharing {
 
     /// The system share sheet, for TikTok and everything else.
     static func presentShareSheet(_ image: UIImage, text: String) {
+        presentShareSheet(items: [image, text])
+    }
+
+    /// The system share sheet for anything — the doctor summary PDF too.
+    static func presentShareSheet(items: [Any]) {
         guard let presenter = topViewController() else { return }
-        let sheet = UIActivityViewController(activityItems: [image, text], applicationActivities: nil)
+        let sheet = UIActivityViewController(activityItems: items, applicationActivities: nil)
         // iPad needs an anchor for the popover.
         sheet.popoverPresentationController?.sourceView = presenter.view
         sheet.popoverPresentationController?.sourceRect = CGRect(

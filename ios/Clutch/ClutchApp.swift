@@ -13,6 +13,8 @@ struct ClutchApp: App {
                     RequestView(locations: DebugLaunch.sampleSpots ? ProductLocation.samples : ProductLocationStore.all)
                 } else if DebugLaunch.cardGallery {
                     DebugCardGallery()
+                } else if DebugLaunch.details {
+                    DetailsView()
                 } else if let step = DebugLaunch.question {
                     DebugQuestionScreen(step: step)
                 } else if DebugLaunch.finishedGarden {
@@ -34,6 +36,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         FirebaseBootstrap.configure()
+        #if DEBUG
+        _ = DebugLaunch.demoHistory
+        #endif
         return true
     }
 }
@@ -53,10 +58,29 @@ enum DebugLaunch {
     /// `-cardGallery` shows every kind of deck card, for checking layout.
     static let cardGallery = ProcessInfo.processInfo.arguments.contains("-cardGallery")
 
+    /// `-details` opens "See full details" on its own. Add `-sampleHistory`
+    /// to first replace every saved log with four logged cycles of sample
+    /// data (pre-period lows), for checking the full version of the page.
+    static let details: Bool = {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-sampleHistory") { DebugSampleHistory.install() }
+        return arguments.contains("-details")
+    }()
+
     /// `-question3` opens that onboarding question on its own.
     static let question: Int? = ProcessInfo.processInfo.arguments
         .first { $0.hasPrefix("-question") }
         .flatMap { Int($0.dropFirst("-question".count)) }
+
+    /// `-demoHistory` (for recording the demo video) fills in four past
+    /// cycles of logs ending yesterday but leaves onboarding and today's
+    /// cards to do, so the walkthrough starts fresh and ends on a full
+    /// details page.
+    static let demoHistory: Bool = {
+        guard ProcessInfo.processInfo.arguments.contains("-demoHistory") else { return false }
+        DebugSampleHistory.install(includingToday: false)
+        return true
+    }()
 
     static let finishedGarden: Bool = {
         guard ProcessInfo.processInfo.arguments.contains("-finishedGarden") else { return false }
@@ -104,17 +128,12 @@ struct DebugCardGallery: View {
 
     private var cards: [AnyView] {
         [
-            AnyView(FlowCard { _ in }),
             AnyView(LevelCard(word: "mood", aura: 0, question: "How's your mood today?", titles: LevelScale.moodTitles) { _ in }),
-            AnyView(CrosswordCard(symptom: Symptom.catalog[3])),
-            AnyView(HelpedCard(question: "Today was a lot. What helped?", options: Helper.options) { _ in }),
-            AnyView(HelpedCard(
-                question: InsightCopy.followUpQuestion(symptomIDs: ["cramps"], daysAgo: 1, day: .now),
-                options: Helper.options + [.nothingReally]
-            ) { _ in }),
-        ] + OneTimeQuestion.allCases.map { question in
-            AnyView(OneTimeCard(question: question, onAnswer: { _ in }, onSkip: {}))
-        }
+            AnyView(LevelCard(word: "energy", aura: 1, question: "How's your energy today?", titles: LevelScale.energyTitles) { _ in }),
+            AnyView(ChipsCard(symptoms: Symptom.catalog) { _ in }),
+            AnyView(FlowCard(onPick: { _ in }, onEnded: {})),
+            AnyView(HelpedCard(question: "Yesterday was rough. What helped?", options: Helper.options + [.nothingReally]) { _ in }),
+        ]
     }
 
     var body: some View {
@@ -127,6 +146,45 @@ struct DebugCardGallery: View {
         .padding(28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AuraBackground())
+    }
+}
+
+/// Four logged 28-day cycles ending today: low and anxious the four days
+/// before each period, cramps on the first two days, a heating pad after.
+enum DebugSampleHistory {
+    static func install(includingToday: Bool = true) {
+        let defaults = UserDefaults.standard
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("garden.log.") {
+            defaults.removeObject(forKey: key)
+        }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let first = calendar.date(byAdding: .day, value: -(28 * 4 + 25), to: today)!
+        // Without today, also leave a missed day ten days back, so the
+        // streak reads like a real person's rather than every day since.
+        let skipped: Set<Int> = includingToday ? [] : [28 * 4 + 15]
+        for i in 0...(28 * 4 + 25) where (includingToday || i < 28 * 4 + 25) && !skipped.contains(i) {
+            let date = calendar.date(byAdding: .day, value: i, to: first)!
+            let cycleDay = i % 28 + 1
+            var log = DayLog(date: date, seed: i * 7919)
+            log.flow = cycleDay <= 5 ? .medium : .noFlow
+            log.mood = 4
+            log.energy = (8...14).contains(cycleDay) ? 5 : 3
+            if cycleDay >= 25 || cycleDay == 1 {
+                log.symptoms = ["anxious", "low"]
+                log.mood = 2
+            }
+            if cycleDay <= 2 { log.symptoms.append("cramps") }
+            if cycleDay == 3 || cycleDay == 26 { log.helpedNextDay = [Helper.heatingPad.rawValue, Helper.rest.rawValue] }
+            log.answeredCards = ["mood", "energy", "chips"]
+            log.planted = 3
+            log.completed = true
+            DayLogStore.save(log)
+        }
+        var profile = CycleProfile.load() ?? CycleProfile()
+        profile.lastPeriodStart = calendar.date(byAdding: .day, value: 28 * 4, to: first)
+        profile.onboardingComplete = includingToday
+        profile.save()
     }
 }
 #endif

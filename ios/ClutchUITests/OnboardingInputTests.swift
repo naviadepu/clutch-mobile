@@ -53,9 +53,9 @@ final class OnboardingInputTests: XCTestCase {
 
     func testFinishedBouquetLeadsToDetails() {
         let app = launch("-finishedGarden")
-        let details = app.buttons["See your details"]
+        let details = app.buttons["See full details"]
         XCTAssertTrue(details.waitForExistence(timeout: 10))
         details.tap()
-        XCTAssertTrue(app.staticTexts["about you"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["your details"].waitForExistence(timeout: 5))
     }
 }

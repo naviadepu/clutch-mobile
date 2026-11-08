@@ -1,11 +1,24 @@
 rules_version = '2';
 
-// LOCAL DEVELOPMENT RULES — fully open so the emulator never blocks you.
-// Do NOT deploy these to production. Tighten before `firebase deploy`.
+// Clutch production rules.
+// Every signed-in person (anonymous auth) can only touch documents keyed by
+// their own uid. Everything else is denied by default. Cycle data is
+// sensitive, so new collections must be added here explicitly.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // App startup smoke test (ConnectivityCheck.swift).
+    match /connectivity_checks/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Per-user data, for anything synced later.
+    match /users/{uid}/{document=**} {
+      allow read, write: if isOwner(uid);
     }
   }
 }

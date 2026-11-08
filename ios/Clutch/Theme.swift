@@ -13,6 +13,13 @@ extension Color {
     /// anything primary/active, a muted taupe for secondary labels.
     static let ink = Color(red: 0.29, green: 0.23, blue: 0.20)
     static let mutedInk = Color(red: 0.61, green: 0.54, blue: 0.50)
+
+    /// The details page's printed-card stock and its inks (shared with the
+    /// Request screen's paper cards).
+    static let cream = Color(hex: 0xF5F1EA)
+    static let cardInk = Color(hex: 0x3B2F2A)
+    static let cardSoft = Color(hex: 0x857469)
+    static let cardRule = Color(hex: 0x3B2F2A).opacity(0.12)
 }
 
 /// Named fonts that need more than a plain `.custom(...)` call.

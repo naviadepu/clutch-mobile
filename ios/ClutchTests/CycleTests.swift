@@ -14,10 +14,10 @@ final class CycleTests: XCTestCase {
         return log
     }
 
-    func testSymptomSwipesAreTheEightNewOnes() {
+    func testAnythingElseChips() {
         XCTAssertEqual(
             Symptom.catalog.map(\.id),
-            ["anxious", "low", "irritable", "cramps", "bloating", "headache", "poor-sleep", "cravings"]
+            ["anxious", "low", "irritable", "cramps", "bloating", "headache", "poor-sleep", "cravings", "stressed"]
         )
     }
 

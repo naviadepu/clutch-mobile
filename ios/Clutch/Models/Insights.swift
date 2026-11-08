@@ -162,6 +162,67 @@ enum InsightCopy {
         }
     }
 
+    // MARK: - Early days
+
+    static let moodWords = ["rough", "low", "okay", "good", "great"]
+
+    /// Today in one line before there's a full cycle: her cycle day and
+    /// phase, her mood, and what that phase often feels like.
+    static func earlyHeader(engine: CycleEngine, today: DayLog) -> String {
+        if today.nothingToday { return text(for: .nothingToday) }
+        let date = today.date
+        let feeling = today.mood.map { ", and you're feeling \(moodWords[$0 - 1])" } ?? ""
+        let note = phaseNote(engine: engine, on: date)
+        if let periodDay = engine.periodDay(for: date) {
+            return "Day \(periodDay) of your period\(feeling). \(note)"
+        }
+        guard let cycleDay = engine.cycleDay(for: date) else {
+            return "Logged. Tell Clutch when your period starts and it can place you in your cycle."
+        }
+        return "Day \(cycleDay) of your cycle\(feeling). \(note)"
+    }
+
+    /// What this part of a cycle often feels like. General, never a claim
+    /// about her.
+    static func phaseNote(engine: CycleEngine, on date: Date) -> String {
+        if let periodDay = engine.periodDay(for: date) {
+            return periodDay <= 2
+                ? "Energy often dips today and tomorrow, then climbs as your period ends."
+                : "Energy often starts to climb as your period ends."
+        }
+        switch engine.phase(for: date) {
+        case .rising: return "Energy often builds from here."
+        case .strongest: return "Many people feel their strongest around now."
+        case .windingDown:
+            if let offset = engine.backwardOffset(for: date), offset <= 5 {
+                return "The days before a period can feel heavier. Go gently."
+            }
+            return "Some people feel calmer and a little more tired in this stretch."
+        default: return ""
+        }
+    }
+
+    /// One or two sentences under the typical hormone curve.
+    static func hormoneNote(for phase: CycleEngine.Phase) -> String {
+        switch phase {
+        case .period:
+            "Estrogen and progesterone are at their lowest right now. Some people feel tired or crampy on these days."
+        case .rising:
+            "Estrogen is climbing. Many people notice more energy and a brighter mood."
+        case .strongest:
+            "Estrogen peaks around now, just before ovulation. Many people feel their most social and energetic."
+        case .windingDown:
+            "Progesterone rises after ovulation, then both hormones fall before your period. Some people feel calmer at first, then lower or more on edge near the end."
+        }
+    }
+
+    /// "day 2 of your period" / "day 14 of your cycle", for "For you".
+    static func dayPhrase(engine: CycleEngine, on date: Date) -> String {
+        if let periodDay = engine.periodDay(for: date) { return "day \(periodDay) of your period" }
+        if let cycleDay = engine.cycleDay(for: date) { return "day \(cycleDay) of your cycle" }
+        return "today"
+    }
+
     /// "Yesterday you had cramps. What helped?"
     static func followUpQuestion(symptomIDs: [String], daysAgo: Int, day: Date) -> String {
         let when = daysAgo == 1 ? "Yesterday" : "On \(day.formatted(.dateTime.weekday(.wide)))"

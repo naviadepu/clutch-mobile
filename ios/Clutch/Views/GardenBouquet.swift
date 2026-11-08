@@ -73,6 +73,11 @@ struct Bouquet: View {
                 .zIndex(Double(slot.depth))
             }
 
+            if style.hasSpecialFlower && !flowers.isEmpty {
+                SpecialFlower(seedArt: flowers[0].art, reduceMotion: reduceMotion)
+                    .zIndex(3)
+            }
+
             if !flowers.isEmpty {
                 Group {
                     RimShadow()
@@ -178,6 +183,69 @@ private struct PhotoFlower: View {
         Image("flower-\(flower.art)")
             .resizable()
             .scaleEffect(x: flower.flipped ? -1 : 1)
+    }
+}
+
+/// One flower on its own, upright, for the bloom animation.
+struct SingleFlower: View {
+    let flower: PlantedFlower
+    var depth: Double = 0
+
+    var body: some View {
+        let height = FlowerArt.fullHeight
+        DreamyWash(
+            flower: flower,
+            photo: Image("flower-\(flower.art)").resizable().scaleEffect(x: flower.flipped ? -1 : 1),
+            depth: depth
+        )
+        .shadow(color: Color(hex: 0xA85A74).opacity(0.18), radius: 8, y: 4)
+        .frame(width: height * (FlowerArt.aspect[flower.art] ?? 0.66), height: height)
+    }
+}
+
+/// A milestone's special flower: raised in the middle of the bunch, with
+/// a warm glow and a few sparkles around its head.
+private struct SpecialFlower: View {
+    let seedArt: Int
+    let reduceMotion: Bool
+
+    @State private var twinkle = false
+
+    var body: some View {
+        let art = seedArt % BouquetGenerator.artCount + 1
+        let flower = PlantedFlower(art: art, flipped: false, tilt: 0, heightOffset: 0, swayPeriod: 9)
+        let height = FlowerArt.fullHeight * 0.7
+        let knot = Bouquet.knot
+        ZStack {
+            Capsule()
+                .fill(FlowerArt.stemColor)
+                .frame(width: 2.4, height: 130)
+                .position(x: knot.x, y: knot.y - 65)
+            ZStack {
+                Circle()
+                    .fill(RadialGradient(
+                        colors: [Color(hex: 0xFFF1D6).opacity(0.9), Color(hex: 0xFFF1D6).opacity(0)],
+                        center: .center, startRadius: 0, endRadius: 90
+                    ))
+                    .frame(width: 180, height: 180)
+                    .offset(y: -height * 0.25)
+                SingleFlower(flower: flower)
+                    .scaleEffect(0.7)
+                ForEach(0..<4, id: \.self) { i in
+                    Image(systemName: "sparkle")
+                        .font(.system(size: i.isMultiple(of: 2) ? 12 : 8, weight: .light))
+                        .foregroundStyle(.white)
+                        .offset(x: [-54, 48, 60, -40][i], y: [-120, -140, -70, -60][i])
+                        .opacity(reduceMotion ? 0.9 : (twinkle ? 0.95 : 0.2))
+                }
+            }
+            .position(x: knot.x, y: knot.y - 130 - height / 2 + 30)
+        }
+        .frame(width: Bouquet.size.width, height: Bouquet.size.height)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) { twinkle = true }
+        }
     }
 }
 
@@ -438,7 +506,7 @@ private struct SymptomLeaves: View {
 }
 
 /// "Nothing today": a seed just planted, with a first sprout.
-private struct PlantedSeed: View {
+struct PlantedSeed: View {
     var body: some View {
         ZStack {
             Ellipse()

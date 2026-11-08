@@ -69,6 +69,7 @@ struct NameEntryView: View {
                         .background(Color(red: 0.10, green: 0.10, blue: 0.12), in: Circle())
                         .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
                 }
+                .accessibilityLabel("Next")
                 .padding(24)
             }
             .navigationDestination(isPresented: $goToAge) {

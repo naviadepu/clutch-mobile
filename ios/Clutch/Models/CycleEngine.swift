@@ -49,17 +49,23 @@ struct CycleEngine {
 
     // MARK: - Periods and cycles
 
-    /// A bleeding day starts a new period unless it follows another
-    /// bleeding day, or comes within a period's length (plus two days of
-    /// slack) of the last start. The start she gave in onboarding counts
-    /// too, unless a logged start already covers it.
+    /// "My period started" always starts one. Otherwise a bleeding day
+    /// starts a new period unless it follows another bleeding day, or comes
+    /// within a period's length (plus two days of slack) of the last start.
+    /// The start she gave in onboarding counts too, unless a logged start
+    /// already covers it.
     private static func findPeriodStarts(in logs: [DayLog], profile: CycleProfile, calendar: Calendar) -> [Date] {
         func gap(_ a: Date, _ b: Date) -> Int { calendar.dateComponents([.day], from: a, to: b).day ?? 0 }
         let slack = profile.effectivePeriodLength + 2
         var starts: [Date] = []
         var previousBleed: Date?
-        for log in logs where log.flow?.isBleeding == true {
+        for log in logs where log.periodStarted || log.flow?.isBleeding == true {
             let day = calendar.startOfDay(for: log.date)
+            if log.periodStarted {
+                if starts.last != day { starts.append(day) }
+                previousBleed = day
+                continue
+            }
             let continuesPrevious = previousBleed.map { gap($0, day) <= 1 } ?? false
             let withinLastPeriod = starts.last.map { gap($0, day) < slack } ?? false
             if !continuesPrevious && !withinLastPeriod { starts.append(day) }
@@ -96,10 +102,24 @@ struct CycleEngine {
 
     var usableCycles: [Cycle] { completedCycles.filter(isUsable) }
 
+    /// Cycles that are real, not tracking gaps. Following Li, Urteaga et al.
+    /// (JAMIA 2022): most wildly long "cycles" in tracker data are a period
+    /// she didn't log. A cycle at least 1.6× her usual length that she
+    /// barely logged during is treated as a missed log and left out; a
+    /// long cycle she logged through is real and kept.
+    var plausibleCycles: [Cycle] {
+        let all = completedCycles.filter { $0.length >= 15 }
+        guard let usual = Self.median(all.map { Double($0.length) }) else { return [] }
+        return all.filter { cycle in
+            let looksDoubled = Double(cycle.length) >= usual * 1.6 || cycle.length > 60
+            return !looksDoubled || isUsable(cycle)
+        }
+    }
+
     /// Her own median once two plausible cycles are known, otherwise what
     /// she told onboarding, otherwise the one cycle seen, otherwise 28.
     var typicalCycleLength: Int {
-        let lengths = completedCycles.map(\.length).filter { (15...60).contains($0) }
+        let lengths = plausibleCycles.map(\.length)
         if lengths.count >= 2, let median = Self.median(lengths.map(Double.init)) { return Int(median.rounded()) }
         return profile.cycleLength ?? lengths.first ?? CycleProfile.typicalCycleLength
     }

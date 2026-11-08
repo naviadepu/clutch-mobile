@@ -1,0 +1,275 @@
+{
+  "_note": "Explainers are DRAFTS for the founder to review. Sources were found and checked in September 2026: official medical organizations, government health sites, and peer-reviewed studies. Review each one, then set needsReview to false. Only add sources from those kinds of places. Placeholder: {day} = 'day 2 of your period' / 'day 14 of your cycle'.",
+  "topics": [
+    {
+      "id": "cravings-period",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [
+          "cravings"
+        ],
+        "phases": [],
+        "insights": []
+      },
+      "forYouTemplate": "You logged cravings on {day}. Here's what's going on.",
+      "explainer": "Many people notice stronger cravings in the days before and during a period. Hormone levels shift across the cycle, and those shifts may affect appetite and which foods feel comforting. Cravings on their own are common and aren't a sign that anything is wrong. Keeping a snack you like nearby can make these days easier.",
+      "sources": [
+        {
+          "title": "Premenstrual syndrome (PMS)",
+          "publisher": "U.S. Office on Women's Health",
+          "url": "https://womenshealth.gov/menstrual-cycle/premenstrual-syndrome",
+          "takeaway": "Regular exercise, enough sleep, and less caffeine, salt and sugar before a period may ease PMS symptoms."
+        }
+      ]
+    },
+    {
+      "id": "energy-dip-period",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [],
+        "phases": [
+          "period"
+        ],
+        "insights": [
+          "lowEnergyOnPeriod"
+        ]
+      },
+      "forYouTemplate": "Your energy is on the lower side on {day}.",
+      "explainer": "Estrogen and progesterone are at their lowest at the start of a period, and many people feel more tired on the first days. Cramps and poor sleep can add to it. Energy often picks up as the period ends and estrogen starts to rise again.",
+      "sources": []
+    },
+    {
+      "id": "stress-cycle-length",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [],
+        "phases": [],
+        "insights": [
+          "cycleLengthChanged",
+          "stressLink"
+        ]
+      },
+      "forYouTemplate": "Your last cycle was a different length from your usual.",
+      "explainer": "Cycle length can change from month to month. Stress, travel, illness, sleep changes and big changes in exercise or eating are common reasons a cycle runs longer or shorter. One unusual cycle is common. If your cycles keep changing a lot, it might be worth mentioning to a doctor.",
+      "sources": [
+        {
+          "title": "To evaluate the effect of perceived stress on menstrual function",
+          "publisher": "Journal of Clinical and Diagnostic Research",
+          "year": 2015,
+          "url": "https://pubmed.ncbi.nlm.nih.gov/25954667/",
+          "takeaway": "Students with high stress scores were more likely to report irregular cycles."
+        },
+        {
+          "title": "Menstrual Irregularity: A Physiological Adaptation to Cope Perceived Stress",
+          "publisher": "PubMed Central (NIH)",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11321447/",
+          "takeaway": "High perceived stress was linked with a higher chance of irregular periods."
+        }
+      ]
+    },
+    {
+      "id": "pmdd-hormone-sensitivity",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [
+          "low",
+          "anxious",
+          "irritable"
+        ],
+        "phases": [
+          "windingDown"
+        ],
+        "insights": []
+      },
+      "forYouTemplate": "You logged how you're feeling on {day}, in the days before your period.",
+      "explainer": "Some people are more sensitive to the normal hormone changes before a period, and feel lower, more anxious or more irritable in that stretch. For most it's mild and passes once the period starts. If these feelings are strong enough to get in the way of daily life, it might be worth mentioning to a doctor.",
+      "sources": [
+        {
+          "title": "DRSP: Daily Record of Severity of Problems",
+          "publisher": "International Association for Premenstrual Disorders (IAPMD)",
+          "url": "https://www.iapmd.org/drsp",
+          "takeaway": "Doctors look for PMDD using daily symptom ratings kept over at least two cycles."
+        },
+        {
+          "title": "Daily Record of Severity of Problems (DRSP): reliability and validity",
+          "publisher": "Archives of Women's Mental Health",
+          "year": 2006,
+          "url": "https://pubmed.ncbi.nlm.nih.gov/16172836/",
+          "takeaway": "The daily symptom record used to track premenstrual symptoms was found reliable and valid."
+        }
+      ]
+    },
+    {
+      "id": "irregular-cycles-pcos",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [],
+        "phases": [],
+        "insights": [
+          "irregularCycles"
+        ]
+      },
+      "forYouTemplate": "Your cycle lengths have varied by more than a week.",
+      "explainer": "Cycles can vary, especially in the first years after periods start and during stressful times. When cycles often vary by more than a week, or periods are far apart, it can have many causes. If that's a pattern for you, it might be worth mentioning to a doctor.",
+      "sources": [
+        {
+          "title": "The two FIGO systems for normal and abnormal uterine bleeding symptoms: 2018 revisions",
+          "publisher": "International Journal of Gynecology & Obstetrics (FIGO)",
+          "year": 2018,
+          "url": "https://obgyn.onlinelibrary.wiley.com/doi/10.1002/ijgo.12666",
+          "takeaway": "Normal cycles run 24 to 38 days, with the shortest and longest within about 7 to 9 days of each other."
+        },
+        {
+          "title": "Menstruation in Girls and Adolescents: Using the Menstrual Cycle as a Vital Sign",
+          "publisher": "ACOG Committee Opinion",
+          "year": 2015,
+          "url": "https://www.acog.org/clinical/clinical-guidance/committee-opinion/articles/2015/12/menstruation-in-girls-and-adolescents-using-the-menstrual-cycle-as-a-vital-sign",
+          "takeaway": "Doctors treat the cycle as a vital sign; unusual patterns can point to things like PCOS or thyroid problems."
+        }
+      ]
+    },
+    {
+      "id": "birth-control-and-tracking",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [],
+        "phases": [],
+        "insights": [
+          "hormonalBirthControl"
+        ]
+      },
+      "forYouTemplate": "You told Clutch you use hormonal birth control.",
+      "explainer": "Hormonal birth control changes the usual hormone pattern, so the typical cycle phases may not match how your body works. A bleed on the pill can be different from a natural period. Clutch still learns from how you feel day to day, which is useful on any kind of cycle.",
+      "sources": []
+    },
+    {
+      "id": "cycle-phases",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [],
+        "phases": [],
+        "insights": [
+          "cyclePhases"
+        ]
+      },
+      "forYouTemplate": "You're on {day}.",
+      "explainer": "A cycle is often described in phases: the period, the days after it when estrogen rises, a few days around ovulation, and the stretch before the next period when progesterone rises and then both hormones fall. Everyone's pattern is a little different, which is why Clutch learns yours as you log.",
+      "sources": [
+        {
+          "title": "Real-world menstrual cycle characteristics of more than 600,000 menstrual cycles",
+          "publisher": "npj Digital Medicine",
+          "year": 2019,
+          "url": "https://www.nature.com/articles/s41746-019-0152-7",
+          "takeaway": "Across more than 600,000 cycles the average was 29.3 days, and cycle length varied a lot from person to person."
+        }
+      ]
+    },
+    {
+      "id": "cramps-relief",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [
+          "cramps"
+        ],
+        "phases": [],
+        "insights": []
+      },
+      "forYouTemplate": "You logged cramps on {day}.",
+      "explainer": "Period cramps are common, especially in the first days. Heat on your lower belly, a warm bath and regular exercise are simple things that help many people. If cramps are bad enough to keep you from school or work, or pain relief doesn't help, it might be worth mentioning to a doctor.",
+      "sources": [
+        {
+          "title": "Dysmenorrhea: Painful Periods",
+          "publisher": "American College of Obstetricians and Gynecologists (ACOG)",
+          "url": "https://www.acog.org/womens-health/faqs/dysmenorrhea-painful-periods",
+          "takeaway": "A heating pad or warm bath, and regular exercise, can ease period pain."
+        }
+      ]
+    },
+    {
+      "id": "normal-cycle-range",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [],
+        "phases": [],
+        "insights": [
+          "cycleCheck"
+        ]
+      },
+      "forYouTemplate": "Clutch compared your logged cycles with the ranges doctors use.",
+      "explainer": "Doctors use a few simple ranges to read a cycle: how often periods come, how much that varies from cycle to cycle, and how long a period lasts. Being outside a range once can happen for lots of reasons. A pattern outside them is something doctors like to know about, and your logs are exactly what they ask for.",
+      "sources": [
+        {
+          "title": "The two FIGO systems for normal and abnormal uterine bleeding symptoms: 2018 revisions",
+          "publisher": "International Journal of Gynecology & Obstetrics (FIGO)",
+          "year": 2018,
+          "url": "https://obgyn.onlinelibrary.wiley.com/doi/10.1002/ijgo.12666",
+          "takeaway": "Normal cycles run 24 to 38 days, with the shortest and longest within about 7 to 9 days of each other."
+        },
+        {
+          "title": "Menstruation in Girls and Adolescents: Using the Menstrual Cycle as a Vital Sign",
+          "publisher": "ACOG Committee Opinion",
+          "year": 2015,
+          "url": "https://www.acog.org/clinical/clinical-guidance/committee-opinion/articles/2015/12/menstruation-in-girls-and-adolescents-using-the-menstrual-cycle-as-a-vital-sign",
+          "takeaway": "Doctors treat the cycle as a vital sign; unusual patterns can point to things like PCOS or thyroid problems."
+        }
+      ]
+    },
+    {
+      "id": "how-predictions-work",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [],
+        "phases": [],
+        "insights": [
+          "prediction"
+        ]
+      },
+      "forYouTemplate": "Your next period window comes from your own logged cycles.",
+      "explainer": "Clutch takes the middle of your recent cycle lengths and widens the window by how much they vary. A cycle that looks about twice as long as usual, with few logs in it, is usually a period that wasn't logged, so Clutch leaves it out. The more cycles you log, the narrower the window gets.",
+      "sources": [
+        {
+          "title": "A predictive model for next cycle start date that accounts for adherence in menstrual self-tracking",
+          "publisher": "Journal of the American Medical Informatics Association",
+          "year": 2022,
+          "url": "https://academic.oup.com/jamia/article/29/1/3/6371799",
+          "takeaway": "Predictions get better when an app accounts for periods people forgot to log."
+        },
+        {
+          "title": "Real-world menstrual cycle characteristics of more than 600,000 menstrual cycles",
+          "publisher": "npj Digital Medicine",
+          "year": 2019,
+          "url": "https://www.nature.com/articles/s41746-019-0152-7",
+          "takeaway": "Across more than 600,000 cycles the average was 29.3 days, and cycle length varied a lot from person to person."
+        }
+      ]
+    },
+    {
+      "id": "resting-heart-rate-cycle",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [],
+        "phases": [],
+        "insights": [
+          "healthConnected"
+        ]
+      },
+      "forYouTemplate": "Your heart rate data is connected.",
+      "explainer": "Later: once Apple Health is connected.",
+      "sources": []
+    },
+    {
+      "id": "temperature-ovulation",
+      "needsReview": true,
+      "triggers": {
+        "symptoms": [],
+        "phases": [],
+        "insights": [
+          "temperatureConnected"
+        ]
+      },
+      "forYouTemplate": "Your temperature data is connected.",
+      "explainer": "Later: once temperature data is connected.",
+      "sources": []
+    }
+  ]
+}

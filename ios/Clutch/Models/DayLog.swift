@@ -29,6 +29,13 @@ struct DayLog: Codable, Equatable {
     var helpedNextDay: [String]?
     /// She tapped "Nothing today": the log ends there, and still counts.
     var nothingToday = false
+    /// She tapped "My period started" today: a new cycle begins.
+    var periodStarted = false
+    /// She tapped "Ended" on the Flow card: her period ended today.
+    var periodEnded = false
+    /// The streak milestone celebrated today ("7", "14", "28", "cycle"),
+    /// which adds a special flower to the bouquet.
+    var milestone: String?
 
     /// Card ids answered today, so a relaunch resumes the deck.
     var answeredCards: [String] = []
@@ -57,7 +64,7 @@ struct DayLog: Codable, Equatable {
 
     /// Anything at all was logged — what counts toward a usable cycle.
     var isLogged: Bool {
-        completed || nothingToday || !answeredCards.isEmpty || flow != nil || legacySymptoms != nil
+        completed || nothingToday || !answeredCards.isEmpty || flow != nil || periodStarted || legacySymptoms != nil
     }
 
     func said(_ symptomID: String) -> Bool { symptoms.contains(symptomID) }
@@ -71,7 +78,7 @@ struct DayLog: Codable, Equatable {
 extension DayLog {
     private enum CodingKeys: String, CodingKey {
         case date, seed, version, flow, mood, energy, symptoms, skipped, helped, helpedNextDay,
-             nothingToday, answeredCards, leadCard, planted, completed, moodSwings, legacySymptoms, legacySkipped
+             nothingToday, periodStarted, periodEnded, milestone, answeredCards, leadCard, planted, completed, moodSwings, legacySymptoms, legacySkipped
     }
 
     init(from decoder: Decoder) throws {
@@ -96,6 +103,9 @@ extension DayLog {
         helped = try c.decodeIfPresent([String].self, forKey: .helped) ?? []
         helpedNextDay = try c.decodeIfPresent([String].self, forKey: .helpedNextDay)
         nothingToday = try c.decodeIfPresent(Bool.self, forKey: .nothingToday) ?? false
+        periodStarted = try c.decodeIfPresent(Bool.self, forKey: .periodStarted) ?? false
+        periodEnded = try c.decodeIfPresent(Bool.self, forKey: .periodEnded) ?? false
+        milestone = try c.decodeIfPresent(String.self, forKey: .milestone)
         answeredCards = try c.decodeIfPresent([String].self, forKey: .answeredCards) ?? []
         leadCard = try c.decodeIfPresent(String.self, forKey: .leadCard)
         planted = try c.decodeIfPresent(Int.self, forKey: .planted) ?? 0
@@ -126,8 +136,8 @@ extension DayLog {
         planted = symptoms.count + skipped.count
         // The old deck had five cards; answering all five collected the day.
         completed = planted >= 5
-        answeredCards = (self.symptoms + self.skipped).map(DeckCard.symptomCardID)
-        if (symptoms + skipped).contains(Symptom.legacyPeriodID) { answeredCards.append(DeckCard.flow.id) }
+        answeredCards = (self.symptoms + self.skipped).map { "symptom.\($0)" }
+        if (symptoms + skipped).contains(Symptom.legacyPeriodID) { answeredCards.append("flow") }
     }
 }
 

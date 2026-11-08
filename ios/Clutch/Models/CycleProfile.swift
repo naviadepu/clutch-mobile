@@ -191,22 +191,11 @@ enum HelpGoal: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// The one-time questions that open the daily deck, one a day from day 2.
+/// Questions the details page asks under "Help Clutch know you", one a day.
 enum OneTimeQuestion: String, CaseIterable, Identifiable {
     case birthControl, periodLength, products, student, goals
 
     var id: String { "onetime.\(rawValue)" }
-
-    /// The first day (counting onboarding as day 1) it can show.
-    var day: Int {
-        switch self {
-        case .birthControl: 2
-        case .periodLength: 3
-        case .products: 4
-        case .student: 5
-        case .goals: 6
-        }
-    }
 
     /// Spelled out on the card's crossword.
     var word: String {
@@ -228,6 +217,17 @@ enum OneTimeQuestion: String, CaseIterable, Identifiable {
         case .goals: "What do you want help with most?"
         }
     }
+
+    /// One line on why it helps.
+    var why: String {
+        switch self {
+        case .birthControl: "Hormonal birth control changes how a cycle reads, so Clutch can read yours right."
+        case .periodLength: "Knowing your usual length tells Clutch when your period is likely over."
+        case .products: "Knowing what you use lets Clutch remind you to restock."
+        case .student: "Clutch can plan around classes and exams."
+        case .goals: "Clutch will put what matters to you first."
+        }
+    }
 }
 
 /// A one-time card's history. Skipped once, it comes back a week later;
@@ -235,6 +235,8 @@ enum OneTimeQuestion: String, CaseIterable, Identifiable {
 struct OneTimeCardState: Codable, Equatable {
     var answered = false
     var skips: [Date] = []
+    /// When it was answered, so the details page asks one a day at most.
+    var answeredOn: Date?
 
     static let answered = OneTimeCardState(answered: true)
 }

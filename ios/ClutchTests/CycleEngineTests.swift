@@ -270,72 +270,140 @@ final class CycleEngineTests: XCTestCase {
         XCTAssertEqual(InsightCopy.text(for: .nothingToday), "Seed planted. Your streak is safe.")
     }
 
-    // MARK: - Deck planning
+    // MARK: - Period now and the window
+
+    func testOnHerPeriodWithinHerUsualLengthUntilSheTapsEnded() {
+        // The bug: started Sep 24, typical 5 days, day 2 showed "No period".
+        var profile = CycleProfile()
+        profile.lastPeriodStart = day(0)
+        var yesterday = DayLog(date: day(0), seed: 0)
+        yesterday.mood = 3
+        let engine = CycleEngine(logs: [yesterday], profile: profile, calendar: calendar)
+        XCTAssertTrue(engine.isOnPeriod(day(1)))
+        XCTAssertEqual(engine.periodDay(for: day(1)), 2)
+        XCTAssertFalse(engine.isOnPeriod(day(5)), "past her usual 5 days")
+
+        var ended = DayLog(date: day(2), seed: 2)
+        ended.periodEnded = true
+        let afterEnd = CycleEngine(logs: [yesterday, ended], profile: profile, calendar: calendar)
+        XCTAssertTrue(afterEnd.isOnPeriod(day(1)))
+        XCTAssertFalse(afterEnd.isOnPeriod(day(2)))
+        XCTAssertFalse(afterEnd.isOnPeriod(day(3)))
+    }
+
+    func testPeriodStartedButtonStartsANewCycle() {
+        var started = DayLog(date: day(30), seed: 1)
+        started.periodStarted = true
+        var profile = CycleProfile()
+        profile.lastPeriodStart = day(0)
+        let engine = CycleEngine(logs: [started], profile: profile, calendar: calendar)
+        XCTAssertEqual(engine.periodStarts, [day(0), day(30)])
+        XCTAssertEqual(engine.cycleDay(for: day(31)), 2)
+    }
+
+    func testPredictionWindowWidensWithVariability() {
+        let regular = userA().engine
+        let window = regular.nextPeriodWindow(after: day(4 * 28 + 25))!
+        XCTAssertEqual(window.likely, day(5 * 28), "last start + 28")
+        XCTAssertEqual(window.earliest, day(5 * 28 - 1), "at least 1 day either side")
+        XCTAssertEqual(window.latest, day(5 * 28 + 1))
+
+        let irregular = userB().engine
+        let wide = irregular.nextPeriodWindow(after: day(24 + 35 + 29 + 40 + 29))!
+        XCTAssertEqual(irregular.days(from: wide.earliest, to: wide.latest), 14, "cycles 24–40 spread it the full 7 each side")
+    }
+
+    func testPeriodButtonOffersNearTheWindowOnly() {
+        let engine = userA().engine
+        XCTAssertTrue(engine.isNearPredictedPeriod(day(4 * 28 + 25)), "3 days before the window opens")
+        XCTAssertFalse(engine.isNearPredictedPeriod(day(4 * 28 + 12)))
+    }
+
+    // MARK: - Phases
+
+    func testTypicalPhasesCoverTheCycle() {
+        let spans = CycleEngine.typicalPhases(cycleLength: 28, periodLength: 5)
+        XCTAssertEqual(spans.map(\.phase), [.period, .rising, .strongest, .windingDown])
+        XCTAssertEqual(spans.first?.firstDay, 1)
+        XCTAssertEqual(spans.last?.lastDay, 28)
+        XCTAssertEqual(spans[2].firstDay...spans[2].lastDay, 12...15, "around day 14")
+        for (a, b) in zip(spans, spans.dropFirst()) { XCTAssertEqual(a.lastDay + 1, b.firstDay) }
+    }
+
+    // MARK: - What helps her, and which sections are ready
+
+    func testHelperRankingFromFollowUps() {
+        let (engine, _) = newUser(days: 6) { i, log in
+            switch i {
+            case 0, 1, 2: log.helpedNextDay = [Helper.walk.rawValue]
+            case 3: log.helpedNextDay = [Helper.nap.rawValue, Helper.walk.rawValue]
+            default: break
+            }
+        }
+        XCTAssertEqual(engine.followUpAnswerCount, 4)
+        XCTAssertEqual(engine.helperRanking.first, .init(helper: .walk, count: 4, outOf: 4))
+        XCTAssertEqual(engine.helperRanking.last, .init(helper: .nap, count: 1, outOf: 4))
+    }
+
+    func testDetailsPlanForTheThreeSampleUsers() {
+        let (a, aToday) = userA()
+        let planA = a.detailsPlan(for: aToday)
+        XCTAssertFalse(planA.isEarlyDays)
+        XCTAssertEqual(planA.symptoms.map { $0.id }, ["anxious", "low"])
+        XCTAssertEqual(planA.symptoms.map { $0.insight.tier }, [3, 3])
+
+        let (b, bToday) = userB()
+        XCTAssertEqual(b.detailsPlan(for: bToday).header.asksForMatch, true, "known stretch")
+
+        let (c, cToday) = userC()
+        let planC = c.detailsPlan(for: cToday)
+        XCTAssertEqual(planC.header, .logged)
+        XCTAssertFalse(planC.showsSupport)
+
+        let (fresh, freshToday) = newUser(days: 2) { _, log in log.symptoms = ["cravings"] }
+        let early = fresh.detailsPlan(for: freshToday)
+        XCTAssertTrue(early.isEarlyDays)
+        XCTAssertEqual(early.symptoms.map { $0.insight }, [.general], "tier 1 until there's data")
+    }
+
+    func testSupportLineAfterFiveLowDaysInARow() {
+        let (engine, today) = newUser(days: 5) { _, log in log.symptoms = ["low"] }
+        XCTAssertTrue(engine.detailsPlan(for: today).showsSupport)
+    }
+
+    // MARK: - Deck: four cards at most
 
     private func planner(profile: CycleProfile, logs: [DayLog] = []) -> DeckPlanner {
         DeckPlanner(engine: CycleEngine(logs: logs, profile: profile, calendar: calendar))
     }
 
-    private var onboarded: CycleProfile {
+    func testEverydayDeckIsThreeCards() {
+        XCTAssertEqual(planner(profile: CycleProfile()).deck(on: day(0)), [.mood, .energy, .chips])
+    }
+
+    func testFlowIsCardFourOnlyDuringHerPeriod() {
         var profile = CycleProfile()
-        profile.onboardingComplete = true
-        profile.onboardedOn = day(0)
-        return profile
+        profile.lastPeriodStart = day(0)
+        XCTAssertEqual(planner(profile: profile).deck(on: day(1)), [.mood, .energy, .chips, .flow])
+        XCTAssertEqual(planner(profile: profile).deck(on: day(8)).count, 3)
     }
 
-    func testOneTimeCardsStartOnDayTwoOneAtATime() {
-        XCTAssertNil(planner(profile: onboarded).dueOneTimeQuestion(on: day(0)))
-        XCTAssertEqual(planner(profile: onboarded).dueOneTimeQuestion(on: day(1)), .birthControl)
-        var profile = onboarded
-        profile.oneTimeCards[OneTimeQuestion.birthControl.id] = .answered
-        XCTAssertNil(planner(profile: profile).dueOneTimeQuestion(on: day(1)), "period length waits for day 3")
-        XCTAssertEqual(planner(profile: profile).dueOneTimeQuestion(on: day(2)), .periodLength)
-    }
-
-    func testSkippedCardComesBackOnceAWeekLater() {
-        var profile = onboarded
-        profile.oneTimeCards = Dictionary(uniqueKeysWithValues: OneTimeQuestion.allCases.dropFirst().map { ($0.id, .answered) })
-        profile.oneTimeCards[OneTimeQuestion.birthControl.id] = OneTimeCardState(skips: [day(1)])
-        XCTAssertNil(planner(profile: profile).dueOneTimeQuestion(on: day(7)))
-        XCTAssertEqual(planner(profile: profile).dueOneTimeQuestion(on: day(8)), .birthControl)
-        profile.oneTimeCards[OneTimeQuestion.birthControl.id] = OneTimeCardState(skips: [day(1), day(8)])
-        XCTAssertNil(planner(profile: profile).dueOneTimeQuestion(on: day(30)))
-    }
-
-    func testFollowUpAfterCrampsAndItWaitsForAOneTimeCard() {
-        var yesterday = DayLog(date: day(1), seed: 1)
+    func testFollowUpIsCardFourAfterARoughDayUnlessFlowIs() {
+        var yesterday = DayLog(date: day(9), seed: 1)
         yesterday.symptoms = ["cramps"]
-        yesterday.leadCard = ""
+        XCTAssertEqual(planner(profile: CycleProfile(), logs: [yesterday]).deck(on: day(10)).last, .followUp(day: day(9)))
 
-        // Nothing one-time due (all answered): the follow-up leads.
-        var answeredAll = onboarded
-        answeredAll.oneTimeCards = Dictionary(uniqueKeysWithValues: OneTimeQuestion.allCases.map { ($0.id, .answered) })
-        let lead = planner(profile: answeredAll, logs: [yesterday]).chooseLead(on: day(2))
-        XCTAssertEqual(lead, .followUp(day: day(1), symptomIDs: ["cramps"], daysAgo: 1))
-        XCTAssertEqual(InsightCopy.followUpQuestion(symptomIDs: ["cramps"], daysAgo: 1, day: day(1)), "Yesterday you had cramps. What helped?")
+        var onPeriod = CycleProfile()
+        onPeriod.lastPeriodStart = day(9)
+        let deck = planner(profile: onPeriod, logs: [yesterday]).deck(on: day(10))
+        XCTAssertEqual(deck.last, .flow, "flow wins")
+        XCTAssertLessThanOrEqual(deck.count, DeckCard.maxCards)
 
-        // A one-time card is due: it goes first…
-        XCTAssertEqual(planner(profile: onboarded, logs: [yesterday]).chooseLead(on: day(2)), .oneTime(.birthControl))
-
-        // …and the follow-up gets the next day.
-        var today = DayLog(date: day(2), seed: 2)
-        today.leadCard = OneTimeQuestion.birthControl.id
-        var profile = onboarded
-        profile.oneTimeCards[OneTimeQuestion.birthControl.id] = .answered
-        XCTAssertEqual(
-            planner(profile: profile, logs: [yesterday, today]).chooseLead(on: day(3)),
-            .followUp(day: day(1), symptomIDs: ["cramps"], daysAgo: 2)
-        )
-    }
-
-    func testAnsweredFollowUpIsntAskedAgain() {
-        var yesterday = DayLog(date: day(1), seed: 1)
-        yesterday.symptoms = ["headache"]
         yesterday.helpedNextDay = [Helper.rest.rawValue]
-        XCTAssertNil(planner(profile: CycleProfile(), logs: [yesterday]).followUpCard(on: day(2), daysAgo: 1))
+        XCTAssertEqual(planner(profile: CycleProfile(), logs: [yesterday]).deck(on: day(10)).count, 3, "already answered")
     }
 
-    func testMostCommonSymptomsComeFirstAfterThreeWeeks() {
+    func testMostCommonChipsComeFirstAfterThreeWeeks() {
         let logs = (0..<22).map { i -> DayLog in
             var log = DayLog(date: day(i), seed: i)
             log.symptoms = i.isMultiple(of: 2) ? ["cravings", "headache"] : ["cravings"]
@@ -344,6 +412,143 @@ final class CycleEngineTests: XCTestCase {
         XCTAssertEqual(planner(profile: CycleProfile(), logs: Array(logs.prefix(10))).symptomOrder(on: day(10)), Symptom.catalog)
         let order = planner(profile: CycleProfile(), logs: logs).symptomOrder(on: day(22)).map(\.id)
         XCTAssertEqual(Array(order.prefix(3)), ["cravings", "headache", "anxious"])
+    }
+
+    // MARK: - Help Clutch know you
+
+    func testQuestionsComeOneADayInOrder() {
+        var profile = CycleProfile()
+        XCTAssertEqual(planner(profile: profile).dueQuestion(on: day(0)), .birthControl)
+        profile.oneTimeCards[OneTimeQuestion.birthControl.id] = OneTimeCardState(answered: true, answeredOn: day(0))
+        XCTAssertNil(planner(profile: profile).dueQuestion(on: day(0)), "one a day")
+        XCTAssertEqual(planner(profile: profile).dueQuestion(on: day(1)), .periodLength)
+    }
+
+    func testSkippedQuestionComesBackOnceAWeekLater() {
+        var profile = CycleProfile()
+        for question in DeckPlanner.questionOrder.dropFirst() { profile.oneTimeCards[question.id] = .answered }
+        profile.oneTimeCards[OneTimeQuestion.birthControl.id] = OneTimeCardState(skips: [day(1)])
+        XCTAssertNil(planner(profile: profile).dueQuestion(on: day(7)))
+        XCTAssertEqual(planner(profile: profile).dueQuestion(on: day(8)), .birthControl)
+        profile.oneTimeCards[OneTimeQuestion.birthControl.id] = OneTimeCardState(skips: [day(1), day(8)])
+        XCTAssertNil(planner(profile: profile).dueQuestion(on: day(30)))
+    }
+
+    // MARK: - Learn library
+
+    func testWhyTopicsOnlyShowWhenTheyConnect() {
+        let library = LearnLibrary.shared
+        XCTAssertEqual(library.topic(for: .init(symptoms: ["cravings"]))?.id, "cravings-period")
+        XCTAssertEqual(library.topic(for: .init(symptoms: ["low"], phase: .windingDown))?.id, "pmdd-hormone-sensitivity")
+        XCTAssertNil(library.topic(for: .init(symptoms: ["low"], phase: .rising)), "no random trivia")
+        XCTAssertNil(library.topic(for: .init()))
+        XCTAssertEqual(library.topic(for: .init(phase: .period, insights: ["lowEnergyOnPeriod", "cyclePhases"]))?.id, "energy-dip-period")
+    }
+
+    func testSourcesAreFromTrustedPlacesAndMarkedForReview() {
+        let trusted = ["acog.org", "womenshealth.gov", "iapmd.org", "pubmed.ncbi.nlm.nih.gov", "pmc.ncbi.nlm.nih.gov",
+                       "obgyn.onlinelibrary.wiley.com", "nature.com", "academic.oup.com"]
+        for topic in LearnLibrary.shared.topics {
+            XCTAssertTrue(topic.needsReview, topic.id)
+            for source in topic.sources {
+                XCTAssertTrue(trusted.contains { source.url.host()?.hasSuffix($0) == true }, source.url.absoluteString)
+            }
+        }
+        XCTAssertFalse(LearnLibrary.shared.topics.first { $0.id == "cramps-relief" }!.sources.isEmpty)
+        XCTAssertEqual(LearnLibrary.shared.topics.count, 12)
+    }
+
+    // MARK: - Missed logs, cycle check, stress, mood
+
+    func testAMissedPeriodLogDoesntSkewThePrediction() {
+        // Four 28-day cycles, then 56 days with one log in the middle: a
+        // period she didn't log, not a real 56-day cycle.
+        var logs: [DayLog] = []
+        for start in [0, 28, 56, 84, 140] {
+            for d in 0..<5 {
+                var log = DayLog(date: day(start + d), seed: start + d)
+                log.flow = .medium
+                logs.append(log)
+            }
+        }
+        for i in 5..<112 where !(0..<5).contains(i % 28) && (i < 84 || i == 110) {
+            var log = DayLog(date: day(i), seed: i)
+            log.flow = .noFlow
+            logs.append(log)
+        }
+        let engine = CycleEngine(logs: logs, profile: CycleProfile(), calendar: calendar)
+        XCTAssertEqual(engine.completedCycles.map(\.length), [28, 28, 28, 56])
+        XCTAssertEqual(engine.plausibleCycles.map(\.length), [28, 28, 28])
+        XCTAssertEqual(engine.typicalCycleLength, 28)
+    }
+
+    func testALongCycleSheLoggedThroughIsKept() {
+        let (engine, _) = sampleUser(cycles: [28, 28, 28, 52], currentDay: 3)
+        XCTAssertEqual(engine.plausibleCycles.map(\.length), [28, 28, 28, 52])
+        guard case let .outsideRange(reasons) = engine.cycleCheck() else { return XCTFail("52 days is outside the range") }
+        XCTAssertTrue(reasons.contains { $0.contains("52 days") })
+    }
+
+    func testCycleCheckAgainstTheUsualRanges() {
+        XCTAssertEqual(userA().engine.cycleCheck(), .inRange(shortest: 28, longest: 28))
+        XCTAssertEqual(newUser(days: 5).engine.cycleCheck(), .notEnoughData(have: 0))
+
+        guard case let .outsideRange(reasons) = userB().engine.cycleCheck() else { return XCTFail("24–40 days varies too much") }
+        XCTAssertEqual(reasons.count, 2, "40 days is too long, and 16 days' variation is too much")
+    }
+
+    func testTeensGetTheWiderAdolescentRange() {
+        var teen = CycleProfile()
+        teen.ageRange = .fifteenToSeventeen
+        XCTAssertEqual(CycleEngine(logs: [], profile: teen, calendar: calendar).normalCycleRange, 21...45)
+        XCTAssertEqual(CycleEngine(logs: [], profile: CycleProfile(), calendar: calendar).normalCycleRange, 24...38)
+    }
+
+    func testLoggedPeriodLength() {
+        let engine = userA().engine
+        XCTAssertEqual(engine.loggedPeriodDays(from: day(0)), 5)
+        XCTAssertEqual(engine.usualPeriodLength, 5)
+    }
+
+    func testStressedCyclesRanLonger() {
+        // Cycles 2 and 4 had a stressed week and ran 34 days, the rest 28.
+        let lengths = [28, 34, 28, 34]
+        let starts = lengths.reduce(into: [0]) { $0.append($0.last! + $1) }
+        let (engine, _) = sampleUser(cycles: lengths, currentDay: 3) { place, log in
+            guard let cycle = starts.lastIndex(where: { $0 <= place.index }), cycle < lengths.count else { return }
+            if lengths[cycle] == 34 && (10..<15).contains(place.cycleDay) { log.symptoms = ["stressed"] }
+        }
+        XCTAssertEqual(engine.stressLink(), .init(difference: 6, stressedCycles: 2, calmCycles: 2))
+        XCTAssertNil(userA().engine.stressLink(), "no stressed days logged")
+    }
+
+    func testMoodCheckFindsTheRegularUsersPremenstrualDip() {
+        XCTAssertTrue(userA().engine.hasMoodPattern)
+        XCTAssertFalse(userC().engine.hasMoodPattern, "her lows don't follow the cycle")
+    }
+
+    func testWhatClutchKnowsAboutHer() {
+        let facts = userA().engine.personalFacts()
+        XCTAssertEqual(facts.count, 3)
+        XCTAssertEqual(facts.first?.topic, "pmdd-hormone-sensitivity")
+        XCTAssertTrue(facts.first!.text.hasSuffix("it might be worth mentioning at your next visit."))
+        XCTAssertTrue(newUser(days: 5).engine.personalFacts().isEmpty)
+        for fact in facts { XCTAssertFalse(fact.text.lowercased().contains("you have "), fact.text) }
+    }
+
+    func testDoctorSummary() {
+        let (engine, today) = userA()
+        var profile = CycleProfile()
+        profile.ageRange = .eighteenToTwentyFour
+        let summary = DoctorSummaryContent.make(engine: engine, profile: profile, today: today.date)
+        XCTAssertEqual(summary.about, ["Age 18 – 24"])
+        XCTAssertEqual(summary.cycles.count, 4)
+        XCTAssertEqual(summary.cycles.first?.periodDays, 5)
+        XCTAssertEqual(summary.skippedGaps, 0)
+        XCTAssertTrue(summary.check.first!.contains("within the usual range"))
+        XCTAssertTrue(summary.symptoms.contains { $0.hasPrefix("Cramps:") })
+        XCTAssertTrue(summary.patterns.first!.contains("at least 30% worse"))
+        XCTAssertEqual(summary.logging, "Logged 90 of the last 90 days in Clutch.")
     }
 
     // MARK: - Tips

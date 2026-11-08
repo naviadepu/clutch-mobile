@@ -1,10 +1,11 @@
 import SwiftUI
 import UIKit
 
-/// The Garden screen: one card at a time as a swipeable deck — right to
-/// log, left to skip. Either direction adds a gradient tulip to the day's
-/// bouquet (showing up counts, even when the answer is "skip"). A finished
-/// bouquet can be shared, and joins the collection that tracks her streak.
+/// The Garden screen: today's log as a deck of at most four cards —
+/// swiping moves between them, inputs inside are taps. Every card adds a
+/// flower to the day's bouquet (showing up counts). When the log is done
+/// the new flower blooms, flies into the bouquet and the streak ticks up;
+/// then "See full details" opens what her logs add up to.
 struct GardenView: View {
     let signature: UIImage?
 
@@ -22,8 +23,12 @@ struct GardenView: View {
     /// Once the deck is done the bouquet grows to full size in the middle
     /// of the screen; while logging it sits smaller, low, under the cards.
     @State private var bouquetCentered = false
-    /// "Does this match you?" under today's line, once answered.
-    @State private var lineMatchAnswer: Bool?
+    /// The bloom → fly in → streak tick sequence after the last card.
+    @State private var celebration: Celebration?
+    /// Today's newest flower stays out of the bouquet until it lands.
+    @State private var holdsNewestFlower = false
+    /// A little sway when the flower lands.
+    @State private var landingSway = false
 
     private var streak: Int { BouquetCollection.streak(collectedDays: collection.map(\.day)) }
 
@@ -44,7 +49,7 @@ struct GardenView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: bouquetCentered ? .center : .bottom)
                 .padding(.bottom, bouquetCentered ? 150 : 80)
 
-            if bouquetCentered {
+            if bouquetCentered && celebration == nil {
                 afterBloom
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 118)
@@ -60,15 +65,12 @@ struct GardenView: View {
                             .multilineTextAlignment(.center)
                             .animation(.easeInOut(duration: 0.3), value: promptText)
                             .padding(.horizontal, 40)
+                            .opacity(celebration == nil ? 1 : 0)
 
                         if !model.isFinished {
-                            SwipeDeck(model: model, onCommit: handleCommit, onFinished: handleFinished)
+                            SwipeDeck(model: model, onCommit: handleCommit, onFinished: { handleFinished(animated: true) })
                                 .padding(.horizontal, 28)
-                        } else if model.hasBloomed {
-                            if model.todayLine.asksForMatch {
-                                lineMatchRow
-                                    .transition(.opacity)
-                            }
+                        } else if model.hasBloomed && celebration == nil {
                             HStack(spacing: 12) {
                                 GardenChip(title: "Share bouquet", symbol: "square.and.arrow.up") {
                                     shareToday()
@@ -80,6 +82,7 @@ struct GardenView: View {
                                     showCollection = true
                                 }
                             }
+                            periodChip
                             .transition(.opacity)
                         }
                     }
@@ -118,8 +121,24 @@ struct GardenView: View {
                     .transition(.opacity)
             }
 
+            if let celebration {
+                BloomCelebration(
+                    celebration: celebration,
+                    style: model.style,
+                    onLanded: flowerLanded,
+                    onDetails: {
+                        endCelebration()
+                        showDetails = true
+                    },
+                    onDone: endCelebration
+                )
+                .transition(.opacity)
+                .zIndex(5)
+            }
+
             dock
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .opacity(celebration == nil ? 1 : 0)
         }
         .sheet(isPresented: $showCollection) {
             BouquetCollectionView(bouquets: collection, streak: streak)
@@ -128,7 +147,7 @@ struct GardenView: View {
             RequestView()
         }
         .navigationDestination(isPresented: $showDetails) {
-            YouView()
+            DetailsView()
                 .toolbar(.hidden, for: .navigationBar)
         }
         .onAppear {
@@ -140,7 +159,7 @@ struct GardenView: View {
             // there's nothing left to start.
             guard model.isFinished else { return }
             didStart = true
-            handleFinished()
+            handleFinished(animated: false)
             #if DEBUG
             if DebugLaunch.showShare { shareToday() }
             #endif
@@ -312,7 +331,7 @@ struct GardenView: View {
 
             Button { showDetails = true } label: {
                 HStack(spacing: 8) {
-                    Text("See your details")
+                    Text("See full details")
                         .font(.custom("HelveticaNeue-Medium", size: 15))
                     Image(systemName: "arrow.right")
                         .font(.system(size: 13, weight: .medium))
@@ -351,20 +370,79 @@ struct GardenView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .offset(y: 20)
+        .overlay(alignment: .bottom) {
+            periodChip
+                .padding(.bottom, 140)
+        }
+    }
+
+    /// Always here on the Today screen: "My period started", or which
+    /// period day it is once one's running.
+    @ViewBuilder
+    private var periodChip: some View {
+        if let day = model.engine.periodDay(for: .now) {
+            GardenChip(title: "Period, day \(day)", symbol: "drop.fill") {}
+                .allowsHitTesting(false)
+        } else {
+            GardenChip(title: "My period started", symbol: "drop") {
+                withAnimation(.easeInOut(duration: 0.25)) { model.startPeriod() }
+            }
+        }
     }
 
     private func handleCommit(_ prompt: String) {
         promptText = prompt
     }
 
-    /// Today in one line, tying the whole log together.
-    private func handleFinished() {
-        promptText = model.hasBloomed ? InsightCopy.text(for: model.todayLine) : "A quiet day. Nothing planted."
-        withAnimation(.easeInOut(duration: 0.3)) {
-            collection = BouquetCollection.load()
-        }
+    /// The log is done. Straight after the last card the new flower
+    /// blooms, flies into the bouquet and the streak ticks up; coming back
+    /// to a finished day just shows the settled bouquet.
+    private func handleFinished(animated: Bool) {
+        let line = InsightCopy.text(for: model.todayLine)
+        promptText = model.hasBloomed ? line : "A quiet day. Nothing planted."
+        let before = BouquetCollection.load()
+        withAnimation(.easeInOut(duration: 0.3)) { collection = before }
         guard model.hasBloomed else { return }
-        withAnimation(.easeInOut(duration: 1.4)) { bouquetCentered = true }
+        guard animated else {
+            withAnimation(.easeInOut(duration: 1.4)) { bouquetCentered = true }
+            return
+        }
+
+        let today = Calendar.current.startOfDay(for: .now)
+        let days = collection.map(\.day)
+        let after = BouquetCollection.streak(collectedDays: days)
+        let streakBefore = BouquetCollection.streak(collectedDays: days.filter { Calendar.current.startOfDay(for: $0) != today })
+        let milestone = Celebration.milestone(streak: after, engine: model.engine, today: model.log)
+        if let milestone { model.recordMilestone(milestone.id) }
+
+        // The bouquet stays low while the flower blooms above it, and moves
+        // up once the flower has landed.
+        holdsNewestFlower = !model.log.nothingToday
+        withAnimation(.easeInOut(duration: 0.3)) {
+            celebration = Celebration(
+                flower: model.log.nothingToday ? nil : model.flowers.last,
+                streakBefore: min(streakBefore, after),
+                streakAfter: after,
+                milestone: milestone?.line,
+                line: line
+            )
+        }
+    }
+
+    private func flowerLanded() {
+        holdsNewestFlower = false
+        withAnimation(.easeInOut(duration: reduceMotion ? 0.3 : 0.8)) { bouquetCentered = true }
+        guard !reduceMotion else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.35)) { landingSway = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.5)) { landingSway = false }
+        }
+    }
+
+    private func endCelebration() {
+        holdsNewestFlower = false
+        bouquetCentered = true
+        withAnimation(.easeInOut(duration: 0.3)) { celebration = nil }
     }
 
     private func shareToday() {
@@ -378,7 +456,9 @@ struct GardenView: View {
 
     private var flowerBed: some View {
         let scale: CGFloat = bouquetCentered ? 0.74 : 0.55
-        return Bouquet(flowers: model.flowers, reduceMotion: reduceMotion, signature: signature, style: model.style)
+        let flowers = holdsNewestFlower ? Array(model.flowers.dropLast()) : model.flowers
+        return Bouquet(flowers: flowers, reduceMotion: reduceMotion, signature: signature, style: model.style)
+            .rotationEffect(.degrees(landingSway ? 2.5 : 0), anchor: .bottom)
             .scaleEffect(scale, anchor: .bottom)
             .frame(width: Bouquet.size.width, height: Bouquet.size.height * scale, alignment: .bottom)
             .frame(maxWidth: .infinity)
@@ -391,42 +471,6 @@ struct GardenView: View {
             .accessibilityAddTraits(model.isFinished && model.hasBloomed ? .isButton : [])
     }
 
-    @ViewBuilder
-    private var lineMatchRow: some View {
-        if let lineMatchAnswer {
-            Text(lineMatchAnswer ? "Glad it fits." : "Thanks, Clutch will keep learning.")
-                .font(.system(size: 13, design: .serif).italic())
-                .foregroundStyle(Self.mutedInk)
-        } else {
-            HStack(spacing: 10) {
-                Text("Does this match you?")
-                    .font(.system(size: 13, design: .serif).italic())
-                    .foregroundStyle(Self.ink.opacity(0.8))
-                ForEach([true, false], id: \.self) { matches in
-                    Button(matches ? "Yes" : "No") { answerLineMatch(matches) }
-                        .font(.custom("HelveticaNeue", size: 12))
-                        .foregroundStyle(Self.ink)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 5)
-                        .background(.white.opacity(0.35), in: Capsule())
-                        .overlay(Capsule().strokeBorder(.white.opacity(0.8), lineWidth: 0.8))
-                }
-            }
-        }
-    }
-
-    private func answerLineMatch(_ matches: Bool) {
-        let line = model.todayLine
-        let kind: String
-        switch line {
-        case .knownStretch: kind = "knownStretch"
-        case .goodWindow: kind = "goodWindow"
-        default: kind = "other"
-        }
-        InsightStore.record(.init(date: .now, insight: "today.\(kind)", text: InsightCopy.text(for: line), matches: matches))
-        withAnimation(.easeInOut(duration: 0.2)) { lineMatchAnswer = matches }
-    }
-
     private var gardenSummaryLabel: String {
         let count = model.totalLoggedCount
         return count == 0 ? "Your garden: empty" : "Your garden: \(count) flower\(count == 1 ? "" : "s")"
@@ -435,10 +479,10 @@ struct GardenView: View {
 
 // MARK: - Swipe deck
 
-/// The stacked card deck: one live card up front, two more peeking behind
-/// it for depth. Symptom cards swipe (right yes, left no, with ✕ / ♥ tap
-/// targets that mirror the gesture); the rest are tapped. A yes can flip
-/// the card over to an insight. "Nothing today" sits under every card.
+/// The stacked deck: one live card up front, the next ones peeking behind
+/// it. Inputs inside a card are taps; a swipe either way moves on without
+/// answering. "Nothing today" sits under every card, and "My period
+/// started" on the first one when her period is due.
 private struct SwipeDeck: View {
     @ObservedObject var model: GardenModel
     let onCommit: (_ prompt: String) -> Void
@@ -446,41 +490,25 @@ private struct SwipeDeck: View {
 
     @State private var dragOffset: CGSize = .zero
     @State private var cardOpacity: Double = 1
-    /// The card turned over after a yes swipe, until she moves on.
-    @State private var flip: FlipInsight?
 
     var body: some View {
         VStack(spacing: 18) {
+            if model.currentIndex == 0 && model.offersPeriodStart && !model.log.periodStarted {
+                GardenChip(title: "My period started", symbol: "drop") {
+                    withAnimation(.easeInOut(duration: 0.25)) { model.startPeriod() }
+                    onCommit("Period logged. Flow comes last today.")
+                }
+                .transition(.opacity)
+            }
+
             ZStack {
-                if let flip {
-                    InsightFlipCard(flip: flip, flowers: model.flowers, style: model.style, onContinue: endFlip)
-                        .frame(height: 300)
-                        .offset(dragOffset)
-                        .opacity(cardOpacity)
-                        .id(flip.id)
-                } else {
-                    ForEach(Array(model.upcoming(3).enumerated()).reversed(), id: \.element.id) { pair in
-                        card(pair.element, depth: pair.offset)
-                    }
+                ForEach(Array(model.upcoming(3).enumerated()).reversed(), id: \.element.id) { pair in
+                    card(pair.element, depth: pair.offset)
                 }
             }
             .frame(height: 316)
 
-            if flip == nil, case let .symptom(symptom) = model.currentCard {
-                HStack(spacing: 36) {
-                    tapButton(systemName: "xmark", tint: .mutedInk) {
-                        swipe(symptom, yes: false)
-                    }
-                    .accessibilityLabel("No \(symptom.label)")
-
-                    tapButton(systemName: "heart.fill", tint: .white, background: Color.matcha) {
-                        swipe(symptom, yes: true)
-                    }
-                    .accessibilityLabel("Yes, \(symptom.label)")
-                }
-            }
-
-            if flip == nil && !model.isFinished {
+            if !model.isFinished {
                 Button(action: nothingToday) {
                     Text("Nothing today")
                         .font(.custom("HelveticaNeue", size: 12))
@@ -499,44 +527,24 @@ private struct SwipeDeck: View {
     private func card(_ deckCard: DeckCard, depth: Int) -> some View {
         let isTop = depth == 0
 
-        return ZStack {
-            content(for: deckCard)
-                .allowsHitTesting(isTop)
-
-            if isTop && deckCard.isSwipe {
-                stamp("YES", tint: Color.matcha, alignment: .topTrailing, opacity: yesStampOpacity)
-                stamp("NO", tint: .mutedInk, alignment: .topLeading, opacity: noStampOpacity)
-            }
-        }
-        .frame(height: 300)
-        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .scaleEffect(isTop ? 1 : 1 - CGFloat(depth) * 0.04)
-        .offset(y: isTop ? 0 : CGFloat(depth) * 10)
-        .offset(isTop ? dragOffset : .zero)
-        .rotationEffect(.degrees(isTop && deckCard.isSwipe ? dragOffset.width / 18 : 0))
-        .opacity(isTop ? cardOpacity : 1)
-        .zIndex(isTop ? 10 : Double(9 - depth))
-        .gesture(isTop ? swipeGesture(for: deckCard) : nil)
-        .accessibilityHidden(!isTop)
+        return content(for: deckCard)
+            .allowsHitTesting(isTop)
+            .frame(height: 300)
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .scaleEffect(isTop ? 1 : 1 - CGFloat(depth) * 0.04)
+            .offset(y: isTop ? 0 : CGFloat(depth) * 10)
+            .offset(isTop ? dragOffset : .zero)
+            .rotationEffect(.degrees(isTop ? dragOffset.width / 18 : 0))
+            .opacity(isTop ? cardOpacity : 1)
+            .zIndex(isTop ? 10 : Double(9 - depth))
+            .gesture(isTop ? swipeGesture : nil)
+            .accessibilityHidden(!isTop)
+            .accessibilityAction(named: "Next card") { swipeOn(toRight: true) }
     }
 
     @ViewBuilder
     private func content(for deckCard: DeckCard) -> some View {
         switch deckCard {
-        case let .symptom(symptom):
-            CrosswordCard(symptom: symptom)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(symptom.question)
-                .accessibilityAction(named: "Yes") { swipe(symptom, yes: true) }
-                .accessibilityAction(named: "No") { swipe(symptom, yes: false) }
-
-        case .flow:
-            FlowCard { flow in
-                answer(flow == .noFlow ? "No period today." : "Period logged, \(flow.rawValue) flow.") {
-                    model.answerFlow(flow)
-                }
-            }
-
         case .mood:
             LevelCard(word: "mood", aura: 0, question: "How's your mood today?", titles: LevelScale.moodTitles) { level in
                 answer("Mood: \(LevelScale.moodTitles[level - 1].lowercased()).") { model.answerMood(level) }
@@ -547,110 +555,49 @@ private struct SwipeDeck: View {
                 answer("Energy: \(LevelScale.energyTitles[level - 1].lowercased()).") { model.answerEnergy(level) }
             }
 
-        case .helped:
-            HelpedCard(question: "Today was a lot. What helped?", options: Helper.options) { helpers in
-                answer("Noted what helped.") { model.answerHelped(helpers) }
+        case .chips:
+            ChipsCard(symptoms: model.chipOrder) { ids in
+                answer(ids.isEmpty ? "Nothing else today." : "Noted.") { model.answerChips(ids) }
             }
 
-        case let .followUp(day, symptomIDs, daysAgo):
-            HelpedCard(
-                question: InsightCopy.followUpQuestion(symptomIDs: symptomIDs, daysAgo: daysAgo, day: day),
-                options: Helper.options + [.nothingReally]
-            ) { helpers in
+        case .flow:
+            FlowCard(
+                onPick: { flow in answer("\(flow.title) flow.") { model.answerFlow(flow) } },
+                onEnded: { answer("Period ended. Noted.") { model.answerPeriodEnded() } }
+            )
+
+        case let .followUp(day):
+            HelpedCard(question: "Yesterday was rough. What helped?", options: Helper.options + [.nothingReally]) { helpers in
                 answer("Thanks. Clutch is learning what helps you.") { model.answerFollowUp(helpers, about: day) }
             }
-
-        case let .oneTime(question):
-            OneTimeCard(
-                question: question,
-                onAnswer: { update in answer("Saved.") { model.answerOneTime(question, update: update) } },
-                onSkip: { answer("Skipped for now.") { model.skipOneTime(question) } }
-            )
         }
     }
 
-    private func stamp(_ text: String, tint: Color, alignment: Alignment, opacity: Double) -> some View {
-        Text(text)
-            .font(.system(size: 14, weight: .bold))
-            .tracking(2.5)
-            .foregroundStyle(tint)
-            .padding(.horizontal, 13)
-            .padding(.vertical, 6)
-            .overlay(Capsule().strokeBorder(tint, lineWidth: 1.5))
-            .opacity(opacity)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
-            .padding(16)
-            .allowsHitTesting(false)
-    }
-
-    private var yesStampOpacity: Double { min(1, max(0, dragOffset.width - 20) / 70) }
-    private var noStampOpacity: Double { min(1, max(0, -dragOffset.width - 20) / 70) }
-
-    /// Only symptom cards swipe; mood and energy use their own drag.
-    private func swipeGesture(for deckCard: DeckCard) -> some Gesture {
+    private var swipeGesture: some Gesture {
         DragGesture()
             .onChanged { value in
-                guard deckCard.isSwipe else { return }
                 dragOffset = CGSize(width: value.translation.width, height: value.translation.height * 0.35)
             }
             .onEnded { value in
-                guard case let .symptom(symptom) = deckCard else { return }
-                if value.translation.width > 88 {
-                    swipe(symptom, yes: true)
-                } else if value.translation.width < -88 {
-                    swipe(symptom, yes: false)
+                if abs(value.translation.width) > 88 {
+                    swipeOn(toRight: value.translation.width > 0)
                 } else {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { dragOffset = .zero }
                 }
             }
     }
 
-    private func tapButton(
-        systemName: String,
-        tint: Color,
-        background: Color = .white,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 54, height: 54)
-                .background(background, in: Circle())
-                .overlay(Circle().strokeBorder(.black.opacity(0.08), lineWidth: 1))
-                .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
-        }
-        .buttonStyle(.plain)
-    }
-
     // MARK: Answering
 
-    /// A yes that has something to say turns the card over; otherwise the
-    /// card flies off the way it was swiped.
-    private func swipe(_ symptom: Symptom, yes: Bool) {
-        guard yes else {
-            flyAway(toRight: false, prompt: "No \(symptom.label) today.") { model.answerSymptom(symptom, yes: false) }
-            return
-        }
-        let prompt = "\u{201C}\(symptom.label)\u{201D} bloomed."
-        guard let insight = model.insightIfYes(symptom) else {
-            flyAway(toRight: true, prompt: prompt) { model.answerSymptom(symptom, yes: true) }
-            return
-        }
-        onCommit(prompt)
-        model.answerSymptom(symptom, yes: true)
-        model.markShown(insight)
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { dragOffset = .zero }
-        flip = insight
-    }
-
-    private func endFlip() {
+    /// A swipe moves on to the next card without answering this one.
+    private func swipeOn(toRight: Bool) {
         withAnimation(.easeIn(duration: 0.35)) {
-            dragOffset = CGSize(width: 520, height: 40)
+            dragOffset = CGSize(width: toRight ? 520 : -520, height: 40)
             cardOpacity = 0
         }
+        onCommit("Skipped.")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            flip = nil
+            model.skipCurrent()
             dragOffset = .zero
             cardOpacity = 1
             if model.isFinished { onFinished() }
@@ -665,20 +612,6 @@ private struct SwipeDeck: View {
         }
         onCommit(prompt)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            apply()
-            dragOffset = .zero
-            cardOpacity = 1
-            if model.isFinished { onFinished() }
-        }
-    }
-
-    private func flyAway(toRight: Bool, prompt: String?, apply: @escaping () -> Void) {
-        withAnimation(.easeIn(duration: 0.4)) {
-            dragOffset = CGSize(width: toRight ? 520 : -520, height: 40)
-            cardOpacity = 0
-        }
-        if let prompt { onCommit(prompt) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             apply()
             dragOffset = .zero
             cardOpacity = 1
@@ -867,7 +800,7 @@ private struct DockButtonStyle: ButtonStyle {
 }
 
 /// A small frosted pill for actions under the finished bouquet.
-private struct GardenChip: View {
+struct GardenChip: View {
     let title: String
     let symbol: String
     let action: () -> Void

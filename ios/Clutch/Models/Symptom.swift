@@ -20,6 +20,7 @@ extension Symptom {
         Symptom(id: "headache", label: "headache", question: "Got a headache today?"),
         Symptom(id: "poor-sleep", label: "poor sleep", question: "Sleep badly last night?"),
         Symptom(id: "cravings", label: "cravings", question: "Any cravings today?"),
+        Symptom(id: "stressed", label: "stressed", question: "Feeling stressed today?"),
     ]
 
     static func named(_ id: String) -> Symptom? {
