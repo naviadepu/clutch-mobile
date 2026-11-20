@@ -90,3 +90,14 @@ extension Color {
         )
     }
 }
+
+extension AuraTile {
+    /// The dock's color hints, core to rim: mint, rose, sky, butter, peach.
+    static let hints: [[Color]] = [
+        [Color(hex: 0xFFFBE8), Color(hex: 0xD4FDE0), Color(hex: 0xF5DFF9)],
+        [Color(hex: 0xFFFFFF), Color(hex: 0xFFD0DD), Color(hex: 0xF3DDF6)],
+        [Color(hex: 0xFFFFFF), Color(hex: 0xD3E5FF), Color(hex: 0xEADCF7)],
+        [Color(hex: 0xFFFBEA), Color(hex: 0xFFEAB0), Color(hex: 0xF5DDEB)],
+        [Color(hex: 0xFFFDEE), Color(hex: 0xFDE6D0), Color(hex: 0xF6D5E6)],
+    ]
+}

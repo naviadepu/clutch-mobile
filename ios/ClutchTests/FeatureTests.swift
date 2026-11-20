@@ -51,9 +51,12 @@ final class GentleNudgesTests: XCTestCase {
 final class RouterTests: XCTestCase {
     func testWidgetLinksOpenTheirScreens() {
         let router = AppRouter()
-        router.handle(URL(string: "clutch://hard-time")!)
-        XCTAssertEqual(router.pending, .hardTime)
+        router.handle(URL(string: "clutch://journal")!)
+        XCTAssertEqual(router.pending, .journal)
         router.handle(URL(string: "clutch://wind-down")!)
+        XCTAssertEqual(router.pending, .windDown)
+        // Widgets placed before hard-time was retired.
+        router.handle(URL(string: "clutch://hard-time")!)
         XCTAssertEqual(router.pending, .windDown)
     }
 
@@ -86,12 +89,5 @@ final class RouterTests: XCTestCase {
         snapshot.moods[CycleSnapshot.dayKey(for: .now)] = 5
         let noon = Calendar.current.date(bySettingHour: 12, minute: 30, second: 0, of: .now)!
         XCTAssertTrue(MascotMoment.make(at: noon, snapshot: snapshot).sparkle)
-    }
-
-    func testCravingCardsLoad() {
-        XCTAssertGreaterThanOrEqual(CravingCard.all.count, 20)
-        for craving in Craving.allCases {
-            XCTAssertFalse(CravingCard.all.filter { $0.cravings.contains(craving.rawValue) }.isEmpty, "\(craving) has no ideas")
-        }
     }
 }

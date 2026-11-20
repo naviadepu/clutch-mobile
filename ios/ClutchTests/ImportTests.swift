@@ -31,8 +31,35 @@ final class ClueImportTests: XCTestCase {
         ]
         """
         let days = try ClueImport.parse(Data(json.utf8))
-        XCTAssertEqual(days.map(\.flow), [.light, .heavy, nil])
+        XCTAssertEqual(days.map(\.flow), [.light, .heavy], "spotting-only days are skipped")
         XCTAssertTrue(days[0].symptoms.contains("cramps"))
+    }
+
+    /// The shape of Clue's "Download my data" measurements.json.
+    func testClueMeasurementsExport() throws {
+        let json = """
+        [
+          {"type":"period","id":"a","date":"2025-06-01","value":{"option":"heavy"}},
+          {"type":"period","id":"b","date":"2025-06-02","value":{"option":"very_heavy"}},
+          {"type":"pain","id":"c","date":"2025-06-01","value":[{"option":"period_cramps","extent":{"severity":"mild"}}]},
+          {"type":"pain","id":"d","date":"2025-06-03","value":[{"option":"migraine","extent":{"severity":"severe"}}]},
+          {"type":"feelings","id":"e","date":"2025-06-03","value":[{"option":"sad"},{"option":"anxious"}]},
+          {"type":"energy","id":"f","date":"2025-06-03","value":[{"option":"exhausted"}]},
+          {"type":"digestion","id":"g","date":"2025-06-04","value":[{"option":"bloated"}]},
+          {"type":"sleep_quality","id":"h","date":"2025-06-04","value":[{"option":"trouble_falling_asleep"}]},
+          {"type":"notes","id":"i","date":"2025-06-04","value":{"text":"Stressful week at work"}},
+          {"type":"spotting","id":"j","date":"2025-06-10","value":[{"option":"brown"}]},
+          {"type":"sleep_duration","id":"k","date":"2025-06-04","value":{"minutes":366}}
+        ]
+        """
+        let days = try ClueImport.parse(Data(json.utf8))
+        let byDay = Dictionary(uniqueKeysWithValues: days.map { (Calendar.current.component(.day, from: $0.date), $0) })
+        XCTAssertEqual(byDay[1]?.flow, .heavy)
+        XCTAssertEqual(byDay[1]?.symptoms, ["cramps"])
+        XCTAssertEqual(byDay[2]?.flow, .heavy)
+        XCTAssertEqual(byDay[3]?.symptoms, ["headache", "low", "anxious"], "energy isn't a feeling")
+        XCTAssertEqual(byDay[4]?.symptoms, ["bloating", "poor-sleep"], "notes aren't symptoms")
+        XCTAssertNil(byDay[10]?.flow, "spotting isn't a period")
     }
 
     func testCSV() throws {

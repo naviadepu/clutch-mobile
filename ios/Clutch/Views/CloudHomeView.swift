@@ -71,10 +71,8 @@ struct CloudHomeView: View {
                 }
 
             HStack(spacing: 6) {
-                tile("Hard time", "heart.fill", .hardTime)
-                tile("Craving", "fork.knife", .cravings)
-                tile("Wind down", "moon.stars.fill", .windDown)
-                tile("Cycle", "drop.fill", .tracker)
+                tile("Wind down", "moon.stars", .windDown)
+                tile("Journal", "book", .journal)
             }
             .padding(.top, 4)
         }
@@ -96,102 +94,12 @@ struct FeatureScreen: View {
     var body: some View {
         switch route {
         case .tracker: TrackerView()
-        case .hardTime: HardTimeView()
-        case .cravings: CravingsView()
+        case .journal: JournalView()
         case .windDown: WindDownView()
         case .request: RequestView()
         case .importData: ImportView()
+        case .profile: ProfileView(signature: SignatureStore.load())
         case .cloud, .today: CloudHomeView()
         }
-    }
-}
-
-/// "I'm having a hard time": breathe with the cloud, one line from her
-/// own history, what helped before, someone to tell, and real help.
-struct HardTimeView: View {
-    @State private var breathed = false
-    private let engine: CycleEngine
-    private let today: DayLog
-
-    init() {
-        let profile = CycleProfile.load() ?? CycleProfile()
-        today = DayLogStore.loadOrCreate(for: .now)
-        engine = CycleEngine(logs: DayLogStore.allLogs(), profile: profile)
-    }
-
-    var body: some View {
-        ClutchPage(title: "I've got you", subtitle: "Nothing needs fixing right now.") {
-            Group {
-                if breathed {
-                    VStack(spacing: 12) {
-                        FuzzyCloud(face: .happy).frame(width: 170).frame(height: 150)
-                        Button { breathed = false } label: { Label("Again", systemImage: "arrow.counterclockwise") }
-                            .buttonStyle(.plain)
-                            .font(.custom("DMSans-Regular", size: 14))
-                            .foregroundStyle(Color.cardInk)
-                    }
-                    .frame(maxWidth: .infinity)
-                } else {
-                    CloudBreathing { breathed = true }
-                }
-            }
-            .padding(.vertical, 8)
-
-            Text(reassurance)
-                .font(.system(size: 17, design: .serif).italic())
-                .foregroundStyle(Color.cardInk)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .fixedSize(horizontal: false, vertical: true)
-
-            let ranks = engine.helperRanking.prefix(3)
-            if !ranks.isEmpty {
-                Text("WHAT HELPED BEFORE").detailsLabel().frame(maxWidth: .infinity)
-                HStack(spacing: 8) {
-                    ForEach(ranks, id: \.helper) { rank in
-                        IconBubble(symbol: LogIcon.helper(rank.helper), title: Self.shortName(rank.helper.phrase), size: 50)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("\(rank.helper.phrase) helped \(rank.count) of \(rank.outOf) times")
-                    }
-                }
-            }
-
-            Panel {
-                HStack(spacing: 6) {
-                    ShareLink(item: "Having a soft day today. Could use a little extra kindness.") {
-                        IconBubble(symbol: "envelope.fill", title: "Soft note", size: 52)
-                    }
-                    Link(destination: URL(string: "tel:988")!) { IconBubble(symbol: "phone.fill", title: "Call 988", filled: true, size: 52) }
-                    Link(destination: URL(string: "sms:988")!) { IconBubble(symbol: "message.fill", title: "Text 988", size: 52) }
-                }
-                .buttonStyle(.plain)
-                Text("Thinking about hurting yourself, or it's all too much? 988 is free and open 24/7 in the US. Elsewhere, findahelpline.com, or your local emergency number.")
-                    .detailsSmall()
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    /// "a heating pad" -> "Heating pad".
-    private static func shortName(_ phrase: String) -> String {
-        let bare = phrase.replacingOccurrences(of: #"^(a|an|some|the) "#, with: "", options: .regularExpression)
-        return bare.prefix(1).uppercased() + bare.dropFirst()
-    }
-
-    private var reassurance: String {
-        if case .knownStretch = engine.todayLine(for: today) {
-            return InsightCopy.text(for: engine.todayLine(for: today)) + " It's passed every time."
-        }
-        if let position = engine.position(for: .now), engine.usualHardPositions.contains(position) {
-            return "This part of your cycle is usually harder. That's hormones, not you."
-        }
-        if let day = engine.periodDay(for: .now) {
-            return "Period day \(day). Hormones are at their lowest, so feeling low is really common."
-        }
-        if let offset = engine.backwardOffset(for: .now), offset <= 7 {
-            return "Your period's about \(offset) day\(offset == 1 ? "" : "s") away. It usually lifts once it starts."
-        }
-        return "Hard days happen. It doesn't mean something's wrong with you."
     }
 }

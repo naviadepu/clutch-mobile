@@ -4,6 +4,7 @@ import UIKit
 @main
 struct ClutchApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var router = AppRouter.shared
 
     var body: some Scene {
         WindowGroup {
@@ -30,6 +31,8 @@ struct ClutchApp: App {
                 LandingView()
                 #endif
             }
+            // A new session (after deleting her data) starts from the top.
+            .id(router.session)
             .onOpenURL { AppRouter.shared.handle($0) }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                 HealthSync.shared.syncIfConnected()
@@ -58,6 +61,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 /// going through onboarding. Add `-showShare` to open the share card too.
 enum DebugLaunch {
     static let showShare = ProcessInfo.processInfo.arguments.contains("-showShare")
+    /// `-walkthrough` shows the cloud's home-screen tour again.
+    static let walkthrough = ProcessInfo.processInfo.arguments.contains("-walkthrough")
+    /// `-walkthrough -walkthroughStep 3` opens that tip first.
+    static let walkthroughStep: Int = ProcessInfo.processInfo.arguments
+        .firstIndex(of: "-walkthroughStep")
+        .flatMap { i in ProcessInfo.processInfo.arguments.dropFirst(i + 1).first.flatMap { Int($0) } } ?? 0
 
     /// `-requestScreen` opens the Request screen on its own; add
     /// `-sampleSpots` to fill it with stand-in locations.

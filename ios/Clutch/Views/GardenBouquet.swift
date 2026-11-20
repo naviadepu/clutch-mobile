@@ -537,6 +537,40 @@ struct PlantedSeed: View {
 /// Renders a bouquet to a square image for sharing.
 @MainActor
 enum BouquetSnapshot {
+    /// The share card: 4:5 (1080 × 1350), the bouquet on the blush
+    /// gradient, the wordmark above, the day and caption below.
+    static func card(of flowers: [PlantedFlower], signature: UIImage?, style: BouquetStyle, caption: String, date: Date = .now) -> UIImage? {
+        let content = ZStack {
+            BlushGradient()
+            VStack(spacing: 0) {
+                Text("Clutch")
+                    .font(.custom("PinyonScript-Regular", size: 40))
+                    .foregroundStyle(Color.ink)
+                    .padding(.top, 26)
+                Spacer(minLength: 0)
+                Bouquet(flowers: flowers, reduceMotion: true, animatesIn: false, signature: signature, style: style)
+                    .scaleEffect(0.6, anchor: .bottom)
+                    .frame(width: Bouquet.size.width * 0.6, height: Bouquet.size.height * 0.6, alignment: .bottom)
+                Spacer(minLength: 0)
+                VStack(spacing: 4) {
+                    Text(date.formatted(.dateTime.month(.wide).day()))
+                        .font(.custom("DMSans-Regular", size: 12))
+                        .tracking(1.5)
+                        .textCase(.uppercase)
+                    Text(caption)
+                        .font(.system(size: 17, design: .serif).italic())
+                }
+                .foregroundStyle(Color.ink.opacity(0.8))
+                .padding(.bottom, 28)
+            }
+        }
+        .frame(width: 360, height: 450)
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = 3
+        return renderer.uiImage
+    }
+
     static func image(of flowers: [PlantedFlower], signature: UIImage? = nil, style: BouquetStyle = .plain) -> UIImage? {
         let content = ZStack {
             BlushGradient()

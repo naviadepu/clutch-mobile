@@ -161,6 +161,25 @@ struct TrackerView: View {
             actions
             if let note { Text(note).detailsSmall().frame(maxWidth: .infinity) }
 
+            // New to Clutch but not to tracking: bring the history in.
+            if model.engine.plausibleCycles.count < 2 && !PeriodImport.hasImported(.clue) && !HealthSync.shared.isConnected {
+                Button { importing = true } label: {
+                    HStack(spacing: 12) {
+                        AuraTile(palette: AuraTile.hints[2], symbol: "square.and.arrow.down").frame(width: 40, height: 40)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Used Clue or another app?").font(.custom("DMSans-Regular", size: 15)).foregroundStyle(Color.cardInk)
+                            Text("Bring your history for sharper predictions").font(.custom("DMSans-Light", size: 12)).foregroundStyle(Color.cardSoft)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .medium)).foregroundStyle(Color.cardSoft)
+                    }
+                    .padding(14)
+                    .background(Color.cream, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: Color(hex: 0x4A3328).opacity(0.08), radius: 14, y: 7)
+                }
+                .buttonStyle(.plain)
+            }
+
             calendar
         }
         .confirmationDialog(editing.map { $0.formatted(.dateTime.weekday(.wide).month().day()) } ?? "", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } }), titleVisibility: .visible) {

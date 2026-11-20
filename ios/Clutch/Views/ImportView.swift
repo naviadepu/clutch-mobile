@@ -58,7 +58,7 @@ struct ImportView: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .fileImporter(isPresented: $pickingFile, allowedContentTypes: [.json, .commaSeparatedText, .plainText, .data]) { picked in
+        .fileImporter(isPresented: $pickingFile, allowedContentTypes: [.folder, .json, .commaSeparatedText, .plainText, .data]) { picked in
             if case let .success(url) = picked { importFile(url) }
         }
     }
@@ -91,9 +91,9 @@ struct ImportView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("GETTING YOUR CLUE FILE").detailsLabel()
             HStack(alignment: .top, spacing: 6) {
-                step("1", "person.crop.circle", "Clue profile \u{203A} download your data")
-                step("2", "envelope.open", "Save the file from the email")
-                step("3", "doc.badge.arrow.up", "Pick it here")
+                step("1", "gearshape", "Clue \u{203A} Settings \u{203A} Download my data")
+                step("2", "envelope.open", "Open the email, unzip with Clue's password")
+                step("3", "folder", "Pick the folder here")
             }
         }
         .padding(.top, 4)
@@ -202,7 +202,7 @@ struct ImportView: View {
             working = false
         }
         do {
-            let data = try Data(contentsOf: url)
+            let data = try Data(contentsOf: ClueImport.dataFile(in: url))
             let days = try ClueImport.parse(data)
             let added = PeriodImport.merge(days, source: .clue)
             finish(PeriodImport.summary(daysAdded: added), from: .clue)
@@ -210,7 +210,7 @@ struct ImportView: View {
             problem = "That file doesn't have any period days in it. Try the data file from Clue's email."
         } catch {
             problem = url.pathExtension.lowercased() == "zip"
-                ? "Open the zip in Files first, then pick the file inside."
+                ? "Unzip it in Files first (it uses the password Clue showed you), then pick the folder."
                 : "Couldn't read that file. Try the data file from Clue's email."
         }
     }

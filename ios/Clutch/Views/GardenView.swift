@@ -19,6 +19,7 @@ struct GardenView: View {
     @State private var showCollection = false
     @State private var showRequest = false
     @State private var showDetails = false
+    @State private var showProfile = false
     @State private var collection: [CollectedBouquet] = []
     /// Once the deck is done the bouquet grows to full size in the middle
     /// of the screen; while logging it sits smaller, low, under the cards.
@@ -29,6 +30,11 @@ struct GardenView: View {
     @State private var holdsNewestFlower = false
     /// A little sway when the flower lands.
     @State private var landingSway = false
+    /// Done for the day and back on the clean home screen: name, wordmark,
+    /// today's bouquet, the period chip.
+    @State private var atHome = false
+    /// The cloud's first-visit tour of the home screen.
+    @State private var walkthroughStep: WalkthroughStep?
 
     private var streak: Int { BouquetCollection.streak(collectedDays: collection.map(\.day)) }
 
@@ -43,7 +49,6 @@ struct GardenView: View {
     /// A feature screen opened from the cloud, the dock or a widget tap.
     @State private var feature: AppRouter.Route?
     @ObservedObject private var router = AppRouter.shared
-    @State private var cloudBob = false
 
     var body: some View {
         ZStack {
@@ -51,9 +56,10 @@ struct GardenView: View {
 
             flowerBed
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: bouquetCentered ? .center : .bottom)
-                .padding(.bottom, bouquetCentered ? 150 : 80)
+                .padding(.bottom, atHome ? 210 : (bouquetCentered ? 150 : 80))
+                .padding(.top, atHome ? 120 : 0)
 
-            if bouquetCentered && celebration == nil {
+            if bouquetCentered && celebration == nil && !atHome {
                 afterBloom
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 118)
@@ -61,7 +67,10 @@ struct GardenView: View {
             }
 
             Group {
-                if didStart {
+                if atHome {
+                    homeState
+                        .transition(.opacity)
+                } else if didStart {
                     VStack(spacing: 22) {
                         Text(promptText)
                             .font(.system(size: 17, design: .serif).italic())
@@ -76,20 +85,6 @@ struct GardenView: View {
                         if !model.isFinished {
                             SwipeDeck(model: model, onCommit: handleCommit, onFinished: { handleFinished(animated: true) })
                                 .padding(.horizontal, 28)
-                        } else if model.hasBloomed && celebration == nil {
-                            HStack(spacing: 12) {
-                                GardenChip(title: "Share bouquet", symbol: "square.and.arrow.up") {
-                                    shareToday()
-                                }
-                                GardenChip(
-                                    title: streak == 1 ? "1-day streak" : "\(streak)-day streak",
-                                    symbol: "rectangle.stack"
-                                ) {
-                                    showCollection = true
-                                }
-                            }
-                            periodChip
-                            .transition(.opacity)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -107,7 +102,7 @@ struct GardenView: View {
 
             // The name and wordmark step aside once the day starts, so the
             // deck and the flowers have the screen.
-            if !didStart {
+            if !didStart || atHome {
                 topBar
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -121,7 +116,10 @@ struct GardenView: View {
                     .onTapGesture { withAnimation(.easeInOut(duration: 0.25)) { showShare = false } }
                     .overlay {
                         PolaroidCard(flowers: model.flowers, style: model.style, signature: signature, caption: shareCaption) {
-                            withAnimation(.easeInOut(duration: 0.25)) { showShare = false }
+                            withAnimation(.easeInOut(duration: 0.35)) {
+                                showShare = false
+                                atHome = true
+                            }
                         }
                     }
                     .transition(.opacity)
@@ -133,10 +131,10 @@ struct GardenView: View {
                     style: model.style,
                     onLanded: flowerLanded,
                     onDetails: {
-                        endCelebration()
+                        endCelebration(offerShare: false)
                         showDetails = true
                     },
-                    onDone: endCelebration
+                    onDone: { endCelebration() }
                 )
                 .transition(.opacity)
                 .zIndex(5)
@@ -144,13 +142,18 @@ struct GardenView: View {
 
             dock
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .opacity(celebration == nil ? 1 : 0)
+                .opacity(celebration == nil && !showShare ? 1 : 0)
 
             if celebration == nil && !showShare {
                 gardenCloud
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(.top, didStart ? 0 : 150)
+                    .padding(.top, didStart && !atHome ? 0 : 150)
                     .padding(.trailing, 14)
+            }
+        }
+        .overlayPreferenceValue(WalkthroughAnchorKey.self) { anchors in
+            if walkthroughStep != nil {
+                WalkthroughOverlay(anchors: anchors, step: $walkthroughStep)
             }
         }
         .sheet(item: $feature) { route in
@@ -171,12 +174,16 @@ struct GardenView: View {
         .sheet(isPresented: $showRequest) {
             RequestView()
         }
+        .sheet(isPresented: $showProfile) {
+            ProfileView(signature: signature)
+        }
         .navigationDestination(isPresented: $showDetails) {
             DetailsView()
                 .toolbar(.hidden, for: .navigationBar)
         }
         .onAppear {
             collection = BouquetCollection.load()
+            startWalkthroughIfNeeded()
             // Resuming after today's deck was already finished (app relaunched,
             // came back from another tab) — the commit flow that normally
             // drives this UI never runs, so re-derive it from the model.
@@ -185,6 +192,8 @@ struct GardenView: View {
             guard model.isFinished else { return }
             didStart = true
             handleFinished(animated: false)
+            // Coming back to a finished day: straight to the clean home.
+            atHome = true
             #if DEBUG
             if DebugLaunch.showShare { shareToday() }
             #endif
@@ -204,13 +213,16 @@ struct GardenView: View {
                             .foregroundStyle(Color(red: 1, green: 0.84, blue: 0.45))
                     }
                 }
-                .offset(y: cloudBob ? -3 : 3)
-                .onAppear {
-                    withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) { cloudBob = true }
-                }
+                // A self-contained bob: a repeating withAnimation here used to
+                // sweep up the screen's first layout and set the dock labels
+                // and the cloud itself drifting.
+                .phaseAnimator(reduceMotion ? [false] : [false, true]) { content, up in
+                    content.offset(y: up ? -3 : 3)
+                } animation: { _ in .easeInOut(duration: 2.4) }
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Your cloud: \(moment.line)")
+        .walkthroughTarget(.cloud)
     }
 
     /// The onboarding scribble framed in a dashed glass box on the left,
@@ -233,7 +245,14 @@ struct GardenView: View {
         .padding(.top, 68)
     }
 
+    /// Her name opens her profile.
     private var signatureBox: some View {
+        Button { showProfile = true } label: { signatureCard }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Your profile")
+    }
+
+    private var signatureCard: some View {
         let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
 
         return VStack(alignment: .leading, spacing: 6) {
@@ -326,6 +345,7 @@ struct GardenView: View {
             VStack(spacing: 4) {
                 AuraTile(palette: item.palette, symbol: item.symbol)
                     .frame(width: 48, height: 48)
+                    .modifier(DockWalkthroughTarget(item: item))
 
                 Text(item.title)
                     .font(.custom(isSelected ? "HelveticaNeue-Medium" : "HelveticaNeue", size: 9.5))
@@ -338,79 +358,93 @@ struct GardenView: View {
         .accessibilityLabel(item.title)
     }
 
-    /// Earlier bouquets, newest first — today's is the big one above.
-    private var recentBouquets: [CollectedBouquet] {
-        let today = Calendar.current.startOfDay(for: .now)
-        return Array(collection.filter { Calendar.current.startOfDay(for: $0.day) != today }.prefix(4))
-    }
-
-    /// Under the finished bouquet: the ones before it, then the way on to
-    /// everything the app knows about her.
+    /// Under the finished bouquet, only two things: her streak (opens her
+    /// past bouquets) and sharing today's. A quiet link leads on to her
+    /// cycle so far.
     private var afterBloom: some View {
         VStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Recent bouquets")
-                        .font(.system(size: 13, design: .serif).italic())
-                        .foregroundStyle(Self.ink.opacity(0.8))
-                    Spacer()
-                    if !recentBouquets.isEmpty {
-                        Button("See all") { showCollection = true }
-                            .font(.custom("HelveticaNeue", size: 12))
-                            .foregroundStyle(Self.mutedInk)
-                    }
+            HStack(spacing: 12) {
+                GardenChip(title: streak == 1 ? "1-day streak" : "\(streak)-day streak", symbol: "flame") {
+                    showCollection = true
                 }
-
-                if recentBouquets.isEmpty {
-                    Text("Your past bouquets will gather here, one for each day you check in.")
-                        .font(.system(size: 12, design: .serif).italic())
-                        .foregroundStyle(Self.mutedInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    HStack(spacing: 10) {
-                        ForEach(recentBouquets) { bouquet in
-                            Button { showCollection = true } label: {
-                                miniBouquet(bouquet)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Bouquet from \(bouquet.day.formatted(date: .long, time: .omitted))")
-                        }
-                        Spacer(minLength: 0)
+                if model.hasBloomed {
+                    GardenChip(title: "Share bouquet", symbol: "square.and.arrow.up") {
+                        shareToday()
                     }
                 }
             }
 
-            Button { showDetails = true } label: {
-                HStack(spacing: 8) {
-                    Text("See full details")
-                        .font(.custom("HelveticaNeue-Medium", size: 15))
+            HStack {
+                Button { showDetails = true } label: {
+                    HStack(spacing: 4) {
+                        Text("your cycle so far")
+                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .medium))
+                    }
+                    .font(.system(size: 14, design: .serif).italic())
+                    .foregroundStyle(Self.ink.opacity(0.75))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                // Done: on to the clean home screen.
+                Button { goHome() } label: {
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 16, weight: .light))
+                        .foregroundStyle(Self.ink)
+                        .frame(width: 46, height: 46)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .background(.white.opacity(0.35), in: Circle())
+                        .overlay(Circle().strokeBorder(.white.opacity(0.85), lineWidth: 0.8))
+                        .shadow(color: Color(hex: 0xB0587F).opacity(0.18), radius: 10, y: 4)
                 }
-                .foregroundStyle(Color(hex: 0xFDF6F2))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Self.ink, in: Capsule())
-                .shadow(color: Self.ink.opacity(0.25), radius: 12, y: 6)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Home")
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 28)
     }
 
-    private func miniBouquet(_ bouquet: CollectedBouquet) -> some View {
-        VStack(spacing: 4) {
-            Bouquet(flowers: bouquet.flowers, reduceMotion: true, animatesIn: false, signature: signature, style: bouquet.style)
-                .scaleEffect(0.11, anchor: .bottom)
-                .frame(width: 56, height: 62, alignment: .bottom)
-                .clipped()
-            Text(bouquet.day.formatted(.dateTime.month(.abbreviated).day()))
-                .font(.custom("HelveticaNeue", size: 9))
-                .foregroundStyle(Self.ink.opacity(0.7))
+    /// Once, on the first visit after onboarding, before the day's started.
+    private func startWalkthroughIfNeeded() {
+        var force = false
+        #if DEBUG
+        force = DebugLaunch.walkthrough
+        #endif
+        guard force || (!Walkthrough.isDone && !model.isFinished && (CycleProfile.load()?.onboardingComplete ?? false)) else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            guard force || !didStart else { return }
+            var first = WalkthroughStep.checkIn
+            #if DEBUG
+            first = WalkthroughStep(rawValue: DebugLaunch.walkthroughStep) ?? .checkIn
+            #endif
+            withAnimation(.easeInOut(duration: 0.35)) { walkthroughStep = first }
         }
-        .padding(6)
-        .background(.white.opacity(0.45), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.8), lineWidth: 0.6))
+    }
+
+    private func goHome() {
+        withAnimation(.easeInOut(duration: 0.45)) { atHome = true }
+    }
+
+    /// Home once today's check-in is done: the bouquet sits under her name
+    /// and the wordmark, with the period chip below. Tap the bouquet to
+    /// share it again.
+    private var homeState: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            periodChip
+            Button { showDetails = true } label: {
+                HStack(spacing: 4) {
+                    Text("your cycle so far")
+                    Image(systemName: "chevron.right").font(.system(size: 10, weight: .medium))
+                }
+                .font(.system(size: 14, design: .serif).italic())
+                .foregroundStyle(Self.ink.opacity(0.75))
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.bottom, 128)
     }
 
     /// The idle screen shown before today's deck begins: the glass orb that
@@ -419,6 +453,7 @@ struct GardenView: View {
         StartOrb(text: "log how you feel  \u{2726}  your garden fills  \u{2726}  tap to begin  \u{2726}  ") {
             withAnimation(.spring(response: 0.7, dampingFraction: 0.85)) { didStart = true }
         }
+        .walkthroughTarget(.checkIn)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .offset(y: 20)
         .overlay(alignment: .bottom) {
@@ -490,10 +525,14 @@ struct GardenView: View {
         }
     }
 
-    private func endCelebration() {
+    /// The bouquet's done: offer to share it straight away. Closing the
+    /// share card lands on the clean home.
+    private func endCelebration(offerShare: Bool = true) {
         holdsNewestFlower = false
         bouquetCentered = true
         withAnimation(.easeInOut(duration: 0.3)) { celebration = nil }
+        guard offerShare, model.hasBloomed else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { shareToday() }
     }
 
     private func shareToday() {
@@ -506,7 +545,7 @@ struct GardenView: View {
     }
 
     private var flowerBed: some View {
-        let scale: CGFloat = bouquetCentered ? 0.74 : 0.55
+        let scale: CGFloat = atHome ? 0.56 : (bouquetCentered ? 0.74 : 0.55)
         let flowers = holdsNewestFlower ? Array(model.flowers.dropLast()) : model.flowers
         return Bouquet(flowers: flowers, reduceMotion: reduceMotion, signature: signature, style: model.style)
             .rotationEffect(.degrees(landingSway ? 2.5 : 0), anchor: .bottom)
@@ -677,9 +716,9 @@ private struct SwipeDeck: View {
 
 // MARK: - Share
 
-/// The share card: a snapshot of the bouquet in a white Polaroid frame,
-/// tilted like it was just tossed down, with one-tap share targets
-/// underneath.
+/// Sharing a bouquet: a 4:5 keepsake card (works as a post, a story and in
+/// a message), then the places it can go, as dock-style tiles: Instagram
+/// Story, Post and Message, then iMessage and Save.
 struct PolaroidCard: View {
     let flowers: [PlantedFlower]
     var style: BouquetStyle = .plain
@@ -690,115 +729,117 @@ struct PolaroidCard: View {
 
     @State private var includeName = true
     @State private var image: UIImage?
-    @State private var saved = false
+    @State private var note: String?
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
+            Text("Share your bouquet")
+                .font(.custom("PinyonScript-Regular", size: 36))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.2), radius: 6, y: 2)
             Group {
                 if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
+                    Image(uiImage: image).resizable().scaledToFit()
                 } else {
-                    Color(red: 0.95, green: 0.87, blue: 0.85)
+                    BlushGradient()
                 }
             }
-            .frame(width: 240, height: 240)
-            .clipped()
+            .frame(width: 236, height: 295)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white.opacity(0.9), lineWidth: 1))
+            .shadow(color: Color(hex: 0xB0587F).opacity(0.35), radius: 24, y: 14)
 
-            VStack(spacing: 4) {
-                Text("Share your bouquet")
-                    .font(.custom("PinyonScript-Regular", size: 32))
-                    .foregroundStyle(Color.ink)
-                Text(caption)
-                    .font(.system(size: 13, design: .serif).italic())
-                    .foregroundStyle(Color.mutedInk)
-            }
+            VStack(spacing: 16) {
+                if signature != nil {
+                    Toggle("Include my name", isOn: $includeName)
+                        .font(.custom("DMSans-Regular", size: 14))
+                        .foregroundStyle(Color.ink)
+                        .tint(Color(hex: 0xD68EA5))
+                }
 
-            if signature != nil {
-                Toggle("Include my name", isOn: $includeName)
-                    .font(.system(size: 14, design: .serif).italic())
-                    .foregroundStyle(Color.ink)
-                    .tint(Color(hex: 0xD68EA5))
-                    .frame(width: 220)
-            }
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("INSTAGRAM").detailsLabel()
+                    HStack(spacing: 0) {
+                        target("Story", "circle.dashed", palette: 1) { BouquetSharing.shareStory($0, text: shareText, saved: savedNote) }
+                        target("Post", "square.grid.2x2", palette: 3) { BouquetSharing.shareToInstagramPost($0, text: shareText, saved: savedNote) }
+                        target("Message", "paperplane", palette: 2) { BouquetSharing.shareToInstagramMessage($0) }
+                    }
+                }
 
-            if let image {
-                shareTargets(for: image)
-                    .padding(.top, 4)
+                Rectangle().fill(Color.ink.opacity(0.1)).frame(height: 0.6)
+
+                HStack(spacing: 0) {
+                    target("iMessage", "message", palette: 0) { image in
+                        if !BouquetSharing.shareToMessages(image, body: shareText) { BouquetSharing.presentShareSheet(image, text: shareText) }
+                    }
+                    target("Save", "arrow.down.to.line", palette: 4) { image in
+                        BouquetSharing.saveToPhotos(image) { ok in
+                            withAnimation { note = ok ? "Saved to Photos" : "Allow Photos access in Settings to save" }
+                        }
+                    }
+                    Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+                }
+
+                if let note {
+                    Text(note)
+                        .font(.custom("DMSans-Regular", size: 13))
+                        .foregroundStyle(Color.ink.opacity(0.7))
+                        .transition(.opacity)
+                }
             }
+            .padding(20)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .background(.white.opacity(0.4), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .strokeBorder(LinearGradient(colors: [.white.opacity(0.95), .white.opacity(0.35)], startPoint: .top, endPoint: .bottom), lineWidth: 0.8)
+            )
+            .shadow(color: Color(hex: 0xB0587F).opacity(0.18), radius: 18, y: 8)
         }
-        .padding(16)
-        .padding(.bottom, 12)
-        .background(.white)
-        // Inside the frame, over the photo's corner, so it turns with the card.
+        .padding(.horizontal, 24)
         .overlay(alignment: .topTrailing) {
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Self.ink)
-                    .frame(width: 28, height: 28)
-                    .background(.white.opacity(0.85), in: Circle())
-                    .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.ink)
+                    .frame(width: 32, height: 32)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(.white.opacity(0.8), lineWidth: 0.6))
             }
-            .padding(24)
+            .padding(.trailing, 44)
+            .padding(.top, -8)
             .accessibilityLabel("Close")
         }
         .onAppear(perform: render)
         .onChange(of: includeName) { render() }
-        .rotationEffect(.degrees(-2.5))
-        .shadow(color: .black.opacity(0.3), radius: 26, y: 16)
-    }
-
-    private static let ink = Color.ink
-
-    /// One tap to each place she's likely to post it. Story and Messages
-    /// fall back to the share sheet when they can't open directly; TikTok
-    /// always goes through it, since that's how TikTok takes images.
-    private func shareTargets(for image: UIImage) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            shareButton("Story", symbol: "camera") {
-                if !BouquetSharing.shareToInstagramStory(image) { BouquetSharing.presentShareSheet(image, text: shareText) }
-            }
-            shareButton("TikTok", symbol: "music.note") {
-                BouquetSharing.presentShareSheet(image, text: shareText)
-            }
-            shareButton("iMessage", symbol: "message") {
-                if !BouquetSharing.shareToMessages(image, body: shareText) { BouquetSharing.presentShareSheet(image, text: shareText) }
-            }
-            shareButton(saved ? "Saved" : "Save", symbol: saved ? "checkmark" : "arrow.down.to.line") {
-                BouquetSharing.saveToPhotos(image) { ok in
-                    withAnimation(.easeInOut(duration: 0.2)) { saved = ok }
-                }
-            }
-            shareButton("More", symbol: "ellipsis") {
-                BouquetSharing.presentShareSheet(image, text: shareText)
-            }
-        }
     }
 
     private var shareText: String { "\(caption) \u{2014} my Clutch bouquet" }
 
-    private func shareButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 5) {
-                Image(systemName: symbol)
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(Self.ink)
-                    .frame(width: 44, height: 44)
-                    .background(Color.strawberry, in: Circle())
+    private func savedNote(_ ok: Bool) {
+        withAnimation { note = ok ? "Saved to Photos, opening Instagram" : "Allow Photos access in Settings to share" }
+    }
+
+    private func target(_ title: String, _ symbol: String, palette: Int, action: @escaping (UIImage) -> Void) -> some View {
+        Button {
+            if let image { action(image) }
+        } label: {
+            VStack(spacing: 6) {
+                AuraTile(palette: AuraTile.hints[palette], symbol: symbol)
+                    .frame(width: 52, height: 52)
                 Text(title)
-                    .font(.system(size: 10, design: .serif).italic())
-                    .foregroundStyle(Self.ink.opacity(0.8))
+                    .font(.custom("DMSans-Regular", size: 12))
+                    .foregroundStyle(Color.ink)
             }
+            .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(title == "Story" ? "Share to Instagram story" : title)
+        .accessibilityLabel(title == "Message" ? "Send in an Instagram message" : title == "Story" ? "Share to Instagram story" : title == "Post" ? "Post on Instagram" : title)
     }
 
     private func render() {
-        saved = false
-        image = BouquetSnapshot.image(of: flowers, signature: includeName ? signature : nil, style: style)
+        note = nil
+        image = BouquetSnapshot.card(of: flowers, signature: includeName ? signature : nil, style: style, caption: caption)
     }
 }
 
@@ -879,5 +920,19 @@ struct GardenChip: View {
                 .shadow(color: Color(hex: 0xB0587F).opacity(0.15), radius: 10, y: 4)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// The dock tiles the walkthrough points at.
+private struct DockWalkthroughTarget: ViewModifier {
+    let item: DockItem
+
+    func body(content: Content) -> some View {
+        switch item {
+        case .cycle: content.walkthroughTarget(.cycle)
+        case .request: content.walkthroughTarget(.freePads)
+        case .bouquets: content.walkthroughTarget(.bouquets)
+        default: content
+        }
     }
 }

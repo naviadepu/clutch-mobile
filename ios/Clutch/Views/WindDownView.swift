@@ -41,26 +41,23 @@ enum Feeling: String, CaseIterable, Identifiable {
     var isHeavy: Bool { [.tired, .anxious, .sad, .angry, .overwhelmed].contains(self) }
 }
 
-/// Two minutes before bed: how today felt, write it out, breathe with the
-/// cloud, close the day.
+/// Two minutes before bed: how today felt, breathe with the cloud, close
+/// the day. (Writing lives in the Journal.)
 struct WindDownView: View {
-    private enum Step { case feel, write, breathe, done }
+    private enum Step { case feel, breathe, done }
 
     @State private var step = Step.feel
     @State private var feelings: [Feeling] = []
-    @State private var text = ""
     @State private var past = JournalStore.all()
     @State private var reminderOn = GentleNudges.windDownOn
     @State private var reminderTime = Calendar.current.date(bySettingHour: GentleNudges.windDownMinutes / 60, minute: GentleNudges.windDownMinutes % 60, second: 0, of: .now) ?? .now
     @State private var reminderNote: String?
     @State private var reading: JournalEntry?
-    @FocusState private var writing: Bool
 
     var body: some View {
         ClutchPage(title: "wind down", subtitle: "Two quiet minutes before bed.") {
             switch step {
             case .feel: feelCard
-            case .write: writeCard
             case .breathe:
                 VStack(spacing: 10) {
                     CloudBreathing { finish() }
@@ -98,37 +95,14 @@ struct WindDownView: View {
                     .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
-            PagePrimaryButton(title: "Next", symbol: "arrow.right") { withAnimation { step = .write } }
+            PagePrimaryButton(title: "Next", symbol: "arrow.right") { withAnimation { step = .breathe } }
                 .disabled(feelings.isEmpty)
                 .opacity(feelings.isEmpty ? 0.5 : 1)
         }
     }
 
-    private var writeCard: some View {
-        DetailsCard(title: prompt) {
-            TextEditor(text: $text)
-                .focused($writing)
-                .font(.custom("DMSans-Light", size: 15))
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 140)
-                .padding(10)
-                .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            Label("Stays on your phone", systemImage: "lock.fill").font(.custom("DMSans-Light", size: 12)).foregroundStyle(Color.cardSoft)
-            PagePrimaryButton(title: text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Skip writing" : "Done") {
-                writing = false
-                withAnimation { step = .breathe }
-            }
-        }
-    }
-
-    private var prompt: String {
-        if feelings.contains(where: \.isHeavy) { return "What's weighing on you tonight?" }
-        if feelings.contains(.grateful) { return "What are you grateful for today?" }
-        return "What's one thing from today you want to remember?"
-    }
-
     private func finish() {
-        JournalStore.add(JournalEntry(date: .now, feelings: feelings.map(\.rawValue), text: text.trimmingCharacters(in: .whitespacesAndNewlines)))
+        JournalStore.add(JournalEntry(date: .now, feelings: feelings.map(\.rawValue), text: ""))
         past = JournalStore.all()
         withAnimation { step = .done }
     }
@@ -198,5 +172,87 @@ struct WindDownView: View {
                 Text(reading.text.isEmpty ? reading.feelings.joined(separator: " \u{00B7} ") : reading.text).detailsSmall()
             }
         }
+    }
+}
+
+/// A private place to write: one gentle prompt (tap for another), the
+/// page, and what she's written before.
+struct JournalView: View {
+    @State private var text = ""
+    @State private var promptIndex = Int.random(in: 0..<JournalView.prompts.count)
+    @State private var entries = JournalStore.all().filter { !$0.text.isEmpty }
+    @State private var saved = false
+    @FocusState private var writing: Bool
+
+    static let prompts = [
+        "What's on your mind tonight?",
+        "One thing from today you want to remember",
+        "What made you smile today?",
+        "What's weighing on you?",
+        "What are you grateful for?",
+        "What do you need more of this week?",
+    ]
+
+    var body: some View {
+        ClutchPage(title: "journal", subtitle: "Just for you. It stays on your phone.") {
+            Panel {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { promptIndex = (promptIndex + 1) % Self.prompts.count }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(Self.prompts[promptIndex])
+                            .font(.custom("CormorantGaramond-Light", size: 22))
+                            .foregroundStyle(Color.cardInk)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                        Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 13)).foregroundStyle(Color.cardSoft)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Shows another prompt")
+
+                TextEditor(text: $text)
+                    .focused($writing)
+                    .font(.custom("DMSans-Light", size: 16))
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 170)
+                    .padding(10)
+                    .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                PagePrimaryButton(title: saved ? "Saved" : "Save", symbol: saved ? "checkmark" : "lock") { save() }
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .opacity(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !saved ? 0.5 : 1)
+            }
+
+            if !entries.isEmpty {
+                Text("BEFORE").detailsLabel().padding(.leading, 4)
+                ForEach(entries.prefix(20)) { entry in
+                    Panel(padding: 16) {
+                        HStack(spacing: 6) {
+                            Text(entry.date.formatted(.dateTime.weekday(.abbreviated).month().day())).detailsLabel()
+                            ForEach(entry.feelings, id: \.self) { name in
+                                if let feeling = Feeling(rawValue: name) {
+                                    Image(systemName: feeling.symbol).font(.system(size: 11)).foregroundStyle(Color.cardSoft)
+                                }
+                            }
+                        }
+                        Text(entry.text).detailsBody().lineLimit(5)
+                    }
+                }
+            }
+        }
+    }
+
+    private func save() {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        JournalStore.add(JournalEntry(date: .now, feelings: [], text: trimmed))
+        writing = false
+        withAnimation(.easeInOut(duration: 0.3)) {
+            entries = JournalStore.all().filter { !$0.text.isEmpty }
+            text = ""
+            saved = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { saved = false }
     }
 }

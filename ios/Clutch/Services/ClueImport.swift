@@ -1,7 +1,10 @@
 import Foundation
 
 /// Reads a period-tracker export into `ImportedDay`s. Built for Clue's
-/// data download, but deliberately forgiving, since export formats change:
+/// data download (Clue › Settings › Download my data: a zip holding
+/// `measurements.json`, a list of `{"type", "date", "value"}` records such
+/// as `{"type": "period", "date": "2025-06-21", "value": {"option":
+/// "heavy"}}`), but forgiving, since export formats change:
 ///
 /// - JSON, as a list of days (`{"day": "2023-01-02", "period": "medium",
 ///   "pain": ["cramps"]}`), a list of measurements (`{"date": …, "type":
@@ -40,6 +43,10 @@ enum ClueImport {
             guard let (key, date) = dateOf(record) else { continue }
             var day = byDay[key] ?? ImportedDay(date: date)
             if let type = record["type"] as? String {
+                // Clue's measurements.json: only the types Clutch tracks.
+                // Notes, tags, medication and the rest are left alone, so
+                // a note like "stressful week" isn't read as a symptom.
+                guard Self.measurementTypes.contains(type.lowercased()) else { continue }
                 apply(category: type, value: record["value"], to: &day)
             } else {
                 for (field, value) in record where !dateKeys.contains(field.lowercased()) {
@@ -59,6 +66,13 @@ enum ClueImport {
         }
         return []
     }
+
+    /// Clue's measurement types that map onto Clutch: bleeding, and the
+    /// feelings and symptoms in Clutch's catalog.
+    static let measurementTypes: Set<String> = [
+        "period", "bleeding", "flow", "menstruation", "pain", "feelings", "emotion", "emotions",
+        "mind", "digestion", "craving", "cravings", "sleep_quality", "sleep",
+    ]
 
     private static let dateKeys: Set<String> = ["day", "date", "timestamp", "start", "starttime", "start_date"]
 
@@ -180,5 +194,19 @@ enum ClueImport {
         let key = String(trimmed.prefix(10)).replacingOccurrences(of: "/", with: "-")
         guard let date = isoDay.date(from: key) else { return nil }
         return (key, date)
+    }
+}
+
+extension ClueImport {
+    /// The file inside a picked folder (Clue's unzipped
+    /// `ClueDataDownload-…`), or the picked file itself.
+    static func dataFile(in url: URL) -> URL {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else { return url }
+        let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: nil)
+        while let file = enumerator?.nextObject() as? URL {
+            if file.lastPathComponent.lowercased() == "measurements.json" { return file }
+        }
+        return url
     }
 }

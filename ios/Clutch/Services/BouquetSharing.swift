@@ -38,6 +38,73 @@ enum BouquetSharing {
         return true
     }
 
+    static var hasInstagram: Bool {
+        URL(string: "instagram://app").map(UIApplication.shared.canOpenURL) ?? false
+    }
+
+    /// Story: straight into Instagram's story composer when the app is
+    /// registered with Meta; otherwise saves the image and opens the story
+    /// camera, where it's the newest photo. Without Instagram, the share
+    /// sheet.
+    static func shareStory(_ image: UIImage, text: String, saved: @escaping @MainActor (Bool) -> Void) {
+        if shareToInstagramStory(image) { return }
+        guard hasInstagram, let camera = URL(string: "instagram://story-camera") else {
+            presentShareSheet(image, text: text)
+            return
+        }
+        saveToPhotos(image) { ok in
+            saved(ok)
+            guard ok else { return }
+            UIApplication.shared.open(camera) { opened in
+                if !opened { presentShareSheet(image, text: text) }
+            }
+        }
+    }
+
+    /// Post: saves the image and opens Instagram's new-post screen with it
+    /// selected. Without Instagram, the share sheet.
+    static func shareToInstagramPost(_ image: UIImage, text: String, saved: @escaping @MainActor (Bool) -> Void) {
+        guard hasInstagram else {
+            presentShareSheet(image, text: text)
+            return
+        }
+        saveToPhotosReturningID(image) { id in
+            saved(id != nil)
+            guard let id,
+                  let url = URL(string: "instagram://library?LocalIdentifier=\(id.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? id)")
+            else {
+                presentShareSheet(image, text: text)
+                return
+            }
+            UIApplication.shared.open(url) { opened in
+                if !opened { presentShareSheet(image, text: text) }
+            }
+        }
+    }
+
+    /// Instagram has no link for sending an image to a chat, so DMs go
+    /// through the share sheet, where Instagram's share option sends it.
+    static func shareToInstagramMessage(_ image: UIImage) {
+        presentShareSheet(items: [image])
+    }
+
+    /// Saves and hands back the new photo's identifier.
+    static func saveToPhotosReturningID(_ image: UIImage, completion: @escaping @MainActor (String?) -> Void) {
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            guard status == .authorized || status == .limited else {
+                Task { @MainActor in completion(nil) }
+                return
+            }
+            let created = CreatedAssetID()
+            PHPhotoLibrary.shared().performChanges {
+                created.value = PHAssetChangeRequest.creationRequestForAsset(from: image).placeholderForCreatedAsset?.localIdentifier
+            } completionHandler: { success, _ in
+                let id = success ? created.value : nil
+                Task { @MainActor in completion(id) }
+            }
+        }
+    }
+
     /// A new iMessage with the bouquet attached. Returns `false` on devices
     /// that can't send messages (including the Simulator).
     static func shareToMessages(_ image: UIImage, body: String) -> Bool {
@@ -106,4 +173,10 @@ private final class MessageDismisser: NSObject, MFMessageComposeViewControllerDe
     func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
         controller.dismiss(animated: true)
     }
+}
+
+/// Carries the new photo's identifier out of the Photos change block,
+/// which runs before its completion handler on Photos' own queue.
+private final class CreatedAssetID: @unchecked Sendable {
+    var value: String?
 }

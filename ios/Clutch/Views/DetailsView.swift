@@ -1,15 +1,15 @@
 import SwiftUI
 import UIKit
 
-/// "See full details": what her logs add up to, in plain sentences with
-/// one thing to do each. When her next period is likely, what today
-/// means, what Clutch has learned about her, whether her cycles sit in the
-/// ranges doctors use, and a summary she can take to a doctor. Every fact
-/// with a source behind it gets a "Why?" link to that source.
+/// "See full details": two pictures and a few doors. Her cycle as a strip
+/// of phases with today on it and her own numbers; how she's been feeling
+/// as a fortnight of faces and her most common symptoms; then resources:
+/// the science behind today, a doctor summary, and free pads nearby.
 struct DetailsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var data = DetailsData.load()
     @State private var why: WhyItem?
+    @State private var showRequest = false
 
     var body: some View {
         ZStack {
@@ -17,24 +17,19 @@ struct DetailsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("your details")
-                        .font(.custom("InterTight-SemiBold", size: 30))
-                        .tracking(-1.2)
-                        .foregroundStyle(Color.cardInk)
-
-                    if data.plan.showsSupport {
-                        SupportCard()
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("your cycle so far")
+                            .font(.custom("InterTight-SemiBold", size: 30))
+                            .tracking(-1.2)
+                            .foregroundStyle(Color.cardInk)
+                        Text(data.dayLabel)
+                            .font(.system(size: 15, design: .serif).italic())
+                            .foregroundStyle(Color.cardInk.opacity(0.7))
                     }
 
-                    NextPeriodCard(data: data, why: showWhy)
-                    TodayLineCard(data: data, why: showWhy)
-                    KnowsYouCard(data: data, why: showWhy)
-                    CycleCheckCard(data: data, why: showWhy)
-                    DoctorSummaryCard(data: data)
-
-                    if let question = data.question {
-                        KnowYouCard(question: question) { data = DetailsData.load() }
-                    }
+                    CycleStripCard(data: data)
+                    FeelingsCard(data: data)
+                    resources
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 64)
@@ -60,9 +55,197 @@ struct DetailsView: View {
             WhySheet(item: item)
                 .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $showRequest) { RequestView() }
     }
 
-    private func showWhy(_ item: WhyItem) { why = item }
+    /// Three doors, in the dock's tile style.
+    private var resources: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("RESOURCES").detailsLabel().padding(.leading, 4)
+            HStack(spacing: 10) {
+                if let item = data.whyItem(data.context(extra: ["cyclePhases"])) {
+                    resource("Why you feel this way", symbol: "sparkles", palette: AuraTile.hints[2]) { why = item }
+                }
+                resource("Doctor summary", symbol: "doc.text", palette: AuraTile.hints[0]) {
+                    if let url = DoctorSummary.makePDF(engine: data.engine, profile: data.profile, today: data.date) {
+                        BouquetSharing.presentShareSheet(items: [url])
+                    }
+                }
+                resource("Free pads near you", symbol: "map", palette: AuraTile.hints[3]) { showRequest = true }
+            }
+            if data.plan.showsSupport {
+                Link(destination: URL(string: "tel:988")!) {
+                    Label("Feeling low a lot? Talk to someone: call or text 988", systemImage: "heart")
+                        .font(.custom("DMSans-Regular", size: 13))
+                        .foregroundStyle(Color.cardInk)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color.cream, in: Capsule())
+                }
+            }
+        }
+    }
+
+    private func resource(_ title: String, symbol: String, palette: [Color], action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 12) {
+                AuraTile(palette: palette, symbol: symbol).frame(width: 42, height: 42)
+                Text(title)
+                    .font(.custom("DMSans-Regular", size: 13))
+                    .foregroundStyle(Color.cardInk)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 124, alignment: .topLeading)
+            .background(Color.cream, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: Color(hex: 0x4A3328).opacity(0.08), radius: 14, y: 7)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Her cycle as one strip: a colored segment per phase with its icon, a
+/// marker on today, what today means in a line, and her own numbers.
+private struct CycleStripCard: View {
+    let data: DetailsData
+
+    var body: some View {
+        let engine = data.engine
+        let length = max(engine.typicalCycleLength, 1)
+        let spans = engine.phaseSpans
+        let cycleDay = engine.cycleDay(for: data.date)
+
+        Panel(padding: 20) {
+            Text("YOUR CYCLE").detailsLabel()
+
+            GeometryReader { geo in
+                let unit = geo.size.width / CGFloat(length)
+                ZStack(alignment: .leading) {
+                    HStack(spacing: 3) {
+                        ForEach(spans, id: \.phase) { span in
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(span.phase.tint.opacity(data.phase == span.phase ? 1 : 0.55))
+                                .frame(width: max(unit * CGFloat(span.lastDay - span.firstDay + 1) - 3, 10))
+                                .overlay(
+                                    Image(systemName: span.phase.symbol)
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                )
+                        }
+                    }
+                    if let cycleDay {
+                        VStack(spacing: 3) {
+                            Text("today").font(.custom("DMSans-Regular", size: 9)).foregroundStyle(Color.cardInk)
+                            Capsule().fill(Color.cardInk).frame(width: 3, height: 40)
+                        }
+                        .offset(x: min(CGFloat(cycleDay) - 0.5, CGFloat(length)) * unit - 1.5, y: -8)
+                    }
+                }
+            }
+            .frame(height: 30)
+            .padding(.vertical, 8)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(data.dayLabel)
+
+            if let phase = data.phase {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: phase.symbol).foregroundStyle(phase.tint).font(.system(size: 16))
+                    Text(InsightCopy.phaseNote(engine: engine, on: data.date)).detailsBody()
+                }
+            }
+
+            HStack(spacing: 8) {
+                stat("\(engine.typicalCycleLength)", "day cycle")
+                stat("\(engine.usualPeriodLength)", "day period")
+                if let window = data.windowText { stat(window, "next period") }
+            }
+        }
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.custom("InterTight-SemiBold", size: value.count > 4 ? 15 : 22))
+                .foregroundStyle(Color.cardInk)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label).font(.custom("DMSans-Light", size: 11)).foregroundStyle(Color.cardSoft)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+/// The last two weeks as mood faces, her most common symptoms, and what
+/// has helped her.
+private struct FeelingsCard: View {
+    let data: DetailsData
+
+    private var days: [Date] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: data.date)
+        return (0..<14).reversed().compactMap { calendar.date(byAdding: .day, value: -$0, to: today) }
+    }
+
+    private var topSymptoms: [(id: String, count: Int)] {
+        let recent = data.engine.logs.filter { $0.date >= (days.first ?? .distantPast) }
+        let counts = Dictionary(grouping: recent.flatMap(\.symptoms), by: { $0 }).mapValues(\.count)
+        return counts.sorted { $0.value > $1.value }.prefix(3).map { ($0.key, $0.value) }
+    }
+
+    var body: some View {
+        Panel(padding: 20) {
+            Text("HOW YOU'VE BEEN FEELING").detailsLabel()
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 10) {
+                ForEach(days, id: \.self) { day in
+                    let mood = data.engine.log(on: day)?.mood
+                    VStack(spacing: 4) {
+                        Group {
+                            if let mood {
+                                MoodFace(level: mood, size: 26)
+                            } else {
+                                Circle().strokeBorder(Color.cardRule, style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
+                                    .frame(width: 26, height: 26)
+                            }
+                        }
+                        Text(day.formatted(.dateTime.weekday(.narrow))).font(.custom("DMSans-Light", size: 10)).foregroundStyle(Color.cardSoft)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(day.formatted(.dateTime.weekday(.wide).month().day()) + (mood.map { ": mood \($0) of 5" } ?? ": not logged"))
+                }
+            }
+
+            if !topSymptoms.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(topSymptoms, id: \.id) { item in
+                        HStack(spacing: 6) {
+                            Image(systemName: LogIcon.symptom(item.id)).font(.system(size: 12))
+                            Text(Symptom.named(item.id)?.label ?? item.id)
+                            Text("\(item.count)").foregroundStyle(Color.cardSoft)
+                        }
+                        .font(.custom("DMSans-Regular", size: 12))
+                        .foregroundStyle(Color.cardInk)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Color.strawberry.opacity(0.6), in: Capsule())
+                    }
+                }
+            }
+
+            if let helper = data.engine.helperRanking.first {
+                HStack(spacing: 10) {
+                    Image(systemName: LogIcon.helper(helper.helper)).foregroundStyle(Color.matcha)
+                    Text("\(helper.helper.phrase.prefix(1).uppercased() + helper.helper.phrase.dropFirst()) helps you most.").detailsBody()
+                }
+            } else if topSymptoms.isEmpty {
+                Text("Check in for a few days and your patterns show up here.").detailsSmall()
+            }
+        }
+    }
 }
 
 // MARK: - Data

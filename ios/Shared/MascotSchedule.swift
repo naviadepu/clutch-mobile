@@ -112,10 +112,9 @@ struct MascotMoment: Equatable {
     /// Where a tap on the widget should take her (a `clutch://` host).
     var route: String {
         switch scene {
-        case .drizzle, .cozyTea, .cuddle, .hotWaterNap: "hard-time"
-        case .journal: "wind-down"
+        case .drizzle, .cozyTea, .cuddle, .hotWaterNap: "wind-down"
+        case .journal: "journal"
         case .packing: "request"
-        case .picnic, .dinner: "cravings"
         default: "today"
         }
     }
