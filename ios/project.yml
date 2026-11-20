@@ -40,10 +40,26 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.love.clutch
         INFOPLIST_FILE: Clutch/Info.plist
         GENERATE_INFOPLIST_FILE: false
+        # The Crashlytics symbol upload script reads the built dSYM.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: true
         TARGETED_DEVICE_FAMILY: "1"
+    postBuildScripts:
+      - name: Upload symbols to Crashlytics
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - ${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}
+          - ${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist
+          - $(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)
+        script: |
+          # Release builds only; never fails the build if the upload can't run.
+          if [ "${CONFIGURATION}" = "Release" ]; then
+            "${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run" || echo "warning: Crashlytics symbol upload skipped"
+          fi
     dependencies:
       - target: ClutchWidget
       - package: Firebase
@@ -52,6 +68,8 @@ targets:
         product: FirebaseFirestore
       - package: Firebase
         product: FirebaseAnalytics
+      - package: Firebase
+        product: FirebaseCrashlytics
 
   ClutchWidget:
     type: app-extension

@@ -3,6 +3,7 @@ import FirebaseCore
 import FirebaseAuth
 import FirebaseFirestore
 import FirebaseAnalytics
+import FirebaseCrashlytics
 
 /// Central Firebase setup. In DEBUG builds the app points at the local
 /// Firebase Emulator Suite (`firebase emulators:start`) unless the
@@ -26,9 +27,13 @@ enum FirebaseBootstrap {
         guard FirebaseApp.app() == nil else { return }
         FirebaseApp.configure()
 
-        // Only count real testers: keep simulator / dev runs out of Analytics.
+        // Only count real testers: keep simulator / dev runs out of
+        // Analytics and Crashlytics. Crash reports carry no cycle data.
         #if DEBUG
         Analytics.setAnalyticsCollectionEnabled(false)
+        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(false)
+        #else
+        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
         #endif
 
         guard useEmulators else {

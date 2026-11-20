@@ -53,14 +53,17 @@ struct RequestView: View {
                             .padding(.top, 18)
                     }
 
-                    if !locations.isEmpty {
+                    // The in-app map is switched off for now: spots open in
+                    // her own maps app instead. Flip `inAppMap` to bring the
+                    // List/Map toggle back.
+                    if Self.inAppMap && !locations.isEmpty {
                         viewToggle.padding(.top, 22)
                     }
 
                     Group {
                         if locations.isEmpty {
                             emptyState
-                        } else if showMap {
+                        } else if Self.inAppMap && showMap {
                             spotMap
                         } else {
                             spotGrid
@@ -93,11 +96,18 @@ struct RequestView: View {
         .onDisappear { community.stop() }
     }
 
+    static let inAppMap = false
+
     private func card(for location: ProductLocation) -> some View {
         Button { selected = location } label: {
             SpotCard(location: location, distance: distanceText(to: location))
         }
         .buttonStyle(PressableCard())
+        .overlay(alignment: .bottomTrailing) {
+            DirectionsMenu(location: location)
+                .padding(.trailing, 12)
+                .padding(.bottom, 12)
+        }
     }
 
     /// Two across; each row is as tall as its taller card so the grid
@@ -539,12 +549,47 @@ private struct PressableCard: ButtonStyle {
 
 /// Everything about one spot on a sheet of the same cream stock, with
 /// the way to say it's run out.
+/// A small round button on each spot: walking directions in her own maps
+/// app.
+private struct DirectionsMenu: View {
+    let location: ProductLocation
+
+    var body: some View {
+        Menu {
+            Button { SpotDirections.openInAppleMaps(location) } label: { Label("Apple Maps", systemImage: "map") }
+            Button { SpotDirections.openInGoogleMaps(location) } label: { Label("Google Maps", systemImage: "location") }
+        } label: {
+            Image(systemName: "arrow.triangle.turn.up.right.diamond")
+                .font(.system(size: 15, weight: .light))
+                .foregroundStyle(Paper.ink)
+                .frame(width: 36, height: 36)
+                .background(Paper.cream, in: Circle())
+                .shadow(color: Paper.shadow, radius: 8, y: 4)
+        }
+        .accessibilityLabel("Directions to \(location.name)")
+    }
+}
+
 private struct SpotDetailSheet: View {
     let location: ProductLocation
     let distance: String?
     let justReported: Bool
     let onReportEmpty: () -> Void
     let onReportStocked: () -> Void
+
+    private func directionsButton(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol).font(.system(size: 11, weight: .light))
+                SmallLabel(title)
+            }
+            .foregroundStyle(Paper.cream)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(Paper.ink, in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
 
     var body: some View {
         ScrollView {
@@ -576,6 +621,12 @@ private struct SpotDetailSheet: View {
                         section("What") {
                             ItemLabels(items: location.items, size: 10.5)
                                 .foregroundStyle(Paper.ink)
+                        }
+                    }
+                    section("Get there") {
+                        HStack(spacing: 8) {
+                            directionsButton("Apple Maps", "map") { SpotDirections.openInAppleMaps(location) }
+                            directionsButton("Google Maps", "location") { SpotDirections.openInGoogleMaps(location) }
                         }
                     }
                     section("When") {
