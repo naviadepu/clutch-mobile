@@ -56,6 +56,9 @@ struct DayLog: Codable, Equatable {
     /// A version 1 log's answers, exactly as stored.
     var legacySymptoms: [String]?
     var legacySkipped: [String]?
+    /// Where data on this day came from when it wasn't logged in Clutch
+    /// ("clue", "health"), so an import can be undone.
+    var importedFrom: String?
 
     init(date: Date, seed: Int) {
         self.date = date
@@ -78,7 +81,7 @@ struct DayLog: Codable, Equatable {
 extension DayLog {
     private enum CodingKeys: String, CodingKey {
         case date, seed, version, flow, mood, energy, symptoms, skipped, helped, helpedNextDay,
-             nothingToday, periodStarted, periodEnded, milestone, answeredCards, leadCard, planted, completed, moodSwings, legacySymptoms, legacySkipped
+             nothingToday, periodStarted, periodEnded, milestone, answeredCards, leadCard, planted, completed, moodSwings, legacySymptoms, legacySkipped, importedFrom
     }
 
     init(from decoder: Decoder) throws {
@@ -113,6 +116,7 @@ extension DayLog {
         moodSwings = try c.decodeIfPresent(Bool.self, forKey: .moodSwings)
         legacySymptoms = try c.decodeIfPresent([String].self, forKey: .legacySymptoms)
         legacySkipped = try c.decodeIfPresent([String].self, forKey: .legacySkipped)
+        importedFrom = try c.decodeIfPresent(String.self, forKey: .importedFrom)
     }
 
     /// Version 1 → 2. "feeling low" and "anxious" already used the ids the
@@ -177,6 +181,11 @@ enum DayLogStore {
     static func save(_ log: DayLog) {
         guard let data = try? JSONEncoder().encode(log) else { return }
         defaults.set(data, forKey: key(for: log.date))
+        WidgetBridge.setNeedsRefresh()
+    }
+
+    static func remove(for date: Date) {
+        defaults.removeObject(forKey: key(for: date))
         WidgetBridge.setNeedsRefresh()
     }
 

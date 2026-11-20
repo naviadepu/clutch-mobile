@@ -31,6 +31,8 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.com.love.clutch
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.love.clutch

@@ -828,8 +828,8 @@ private enum DockItem: String, CaseIterable, Identifiable {
         switch self {
         case .garden: "sun.max"
         case .cycle: "drop"
-        case .request: "mappin.and.ellipse"
-        case .bouquets: "camera.macro"
+        case .request: "map"
+        case .bouquets: "leaf"
         case .share: "square.and.arrow.up"
         }
     }
@@ -838,9 +838,9 @@ private enum DockItem: String, CaseIterable, Identifiable {
     var palette: [Color] {
         switch self {
         case .garden: [Color(hex: 0xFFFBE8), Color(hex: 0xD4FDE0), Color(hex: 0xF5DFF9)]
-        case .cycle: [Color(hex: 0xFFFFFF), Color(hex: 0xF5DFF9), Color(hex: 0xE9D5F7)]
-        case .request: [Color(hex: 0xFFFBF0), Color(hex: 0xFDDCE6), Color(hex: 0xE7DCF6)]
-        case .bouquets: [Color(hex: 0xFFF6D8), Color(hex: 0xFDDEDF), Color(hex: 0xE9E7F3)]
+        case .cycle: [Color(hex: 0xFFFFFF), Color(hex: 0xFFD0DD), Color(hex: 0xF3DDF6)]
+        case .request: [Color(hex: 0xFFFFFF), Color(hex: 0xD3E5FF), Color(hex: 0xEADCF7)]
+        case .bouquets: [Color(hex: 0xFFFBEA), Color(hex: 0xFFEAB0), Color(hex: 0xF5DDEB)]
         case .share: [Color(hex: 0xFFFDEE), Color(hex: 0xFDE6D0), Color(hex: 0xF6D5E6)]
         }
     }

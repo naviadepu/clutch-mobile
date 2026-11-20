@@ -179,7 +179,8 @@ enum PeriodProduct: String, Codable, CaseIterable, Identifiable {
 }
 
 enum HelpGoal: String, Codable, CaseIterable, Identifiable {
-    case mood, pain, energy, planning
+    case planning, mood, pain, energy
+    case freeProducts = "free-products"
     case understandingMyBody = "understanding-my-body"
 
     var id: String { rawValue }
@@ -187,6 +188,7 @@ enum HelpGoal: String, Codable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .understandingMyBody: "Understanding my body"
+        case .freeProducts: "Free products"
         default: rawValue.capitalized
         }
     }

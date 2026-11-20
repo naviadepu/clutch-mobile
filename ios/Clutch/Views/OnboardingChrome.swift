@@ -12,7 +12,18 @@ private struct AuraPageSizeKey: EnvironmentKey {
     static let defaultValue: CGSize = .zero
 }
 
+private struct AuraShowsOrbKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
+    /// Draw the iridescent orb into the aura artwork, so the page and the
+    /// glass refracting it both show it in the same place.
+    var auraShowsOrb: Bool {
+        get { self[AuraShowsOrbKey.self] }
+        set { self[AuraShowsOrbKey.self] = newValue }
+    }
+
     /// Full-screen size of the aura artwork, so glass can line its blurred
     /// copy up with the page behind it.
     var auraPageSize: CGSize {
@@ -24,12 +35,35 @@ extension EnvironmentValues {
 struct AuraArtwork: View {
     let size: CGSize
 
+    @Environment(\.auraShowsOrb) private var showsOrb
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        Image("aura-bg")
-            .resizable()
-            .scaledToFill()
+        // Slow, clock-driven drift: every copy of the artwork (the page and
+        // each glass pane's blurred copy) works out the same frame from the
+        // same time, so the glass keeps refracting exactly what's behind it.
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !showsOrb || reduceMotion)) { context in
+            let t = showsOrb && !reduceMotion ? context.date.timeIntervalSinceReferenceDate : 0
+            ZStack {
+                Image("aura-bg")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .scaleEffect(showsOrb ? 1.18 + 0.04 * sin(t / 9) : 1)
+                    .offset(x: showsOrb ? 22 * sin(t / 7) : 0, y: showsOrb ? 30 * cos(t / 11) : 0)
+                    .hueRotation(.degrees(showsOrb ? 8 * sin(t / 13) : 0))
+                if showsOrb {
+                    Image("onboarding-orb")
+                        .resizable()
+                        .frame(width: size.width * 1.05, height: size.width * 1.05)
+                        .scaleEffect(1 + 0.06 * sin(t / 4))
+                        .rotationEffect(.degrees(10 * sin(t / 6)))
+                        .position(x: size.width / 2 + 14 * sin(t / 5), y: size.height * 0.52 + 18 * cos(t / 6))
+                }
+            }
             .frame(width: size.width, height: size.height)
             .clipped()
+        }
     }
 }
 
@@ -181,7 +215,7 @@ private struct AuraGlass<S: InsettableShape>: View {
                     .saturation(1.15)
 
                 // Rose tint so white type reads on the pale aura.
-                shape.fill(OnboardingStyle.plum.opacity(0.22))
+                shape.fill(OnboardingStyle.plum.opacity(0.3))
 
                 // Light falling on the top of the pane.
                 shape.fill(

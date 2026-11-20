@@ -35,8 +35,9 @@ struct NameEntryView: View {
             .ignoresSafeArea()
             .overlay(alignment: .top) {
                 VStack(spacing: 4) {
-                    Text("Your name")
-                        .font(ClutchFont.nameHeading(size: 44))
+                    Text("your name")
+                        .font(.custom("CormorantGaramond-Light", size: 50))
+                        .tracking(-0.5)
                         .foregroundStyle(Color(red: 0.10, green: 0.10, blue: 0.12))
 
                     Text("scribble as you want")
@@ -73,7 +74,7 @@ struct NameEntryView: View {
                 .padding(24)
             }
             .navigationDestination(isPresented: $goToAge) {
-                AgeEntryView(signature: signature)
+                OnboardingFlow(signature: signature)
                     .toolbar(.hidden, for: .navigationBar)
             }
     }

@@ -15,7 +15,7 @@ final class TrackerModel: ObservableObject {
         engine = CycleEngine(logs: DayLogStore.allLogs(), profile: profile)
     }
 
-    private func reload() {
+    func reload() {
         profile = CycleProfile.load() ?? CycleProfile()
         engine = CycleEngine(logs: DayLogStore.allLogs(), profile: profile)
     }
@@ -140,6 +140,7 @@ struct TrackerView: View {
     @State private var pickedStart = Date.now
     @State private var headsUp = GentleNudges.hardDayOn
     @State private var note: String?
+    @State private var importing = false
 
     var body: some View {
         ClutchPage(title: "your cycle", subtitle: subtitle) {
@@ -174,6 +175,7 @@ struct TrackerView: View {
                 }
             }
         }
+        .sheet(isPresented: $importing, onDismiss: model.reload) { ImportView() }
         .sheet(isPresented: $pickingStart) {
             NavigationStack {
                 DatePicker("Started on", selection: $pickedStart, in: ...Date.now, displayedComponents: .date)
@@ -216,6 +218,10 @@ struct TrackerView: View {
             Button { pickedStart = .now; pickingStart = true } label: {
                 IconBubble(symbol: "calendar.badge.plus", title: "Another day")
             }
+            Button { importing = true } label: {
+                IconBubble(symbol: "square.and.arrow.down", title: "Import")
+            }
+            .accessibilityHint("Bring in your history from Clue or Apple Health")
             Button { headsUp.toggle(); setHeadsUp(headsUp) } label: {
                 IconBubble(symbol: headsUp ? "bell.fill" : "bell", title: headsUp ? "Heads-up on" : "Heads-up", filled: headsUp)
             }

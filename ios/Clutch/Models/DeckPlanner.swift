@@ -39,7 +39,17 @@ struct DeckPlanner {
     var calendar: Calendar { engine.calendar }
 
     func deck(on date: Date) -> [DeckCard] {
-        [.mood, .energy, .chips] + (contextualCard(on: date).map { [$0] } ?? [])
+        dailyCards + (contextualCard(on: date).map { [$0] } ?? [])
+    }
+
+    /// Mood, Energy and "Anything else?", led by what she said onboarding
+    /// she's here for: cramps first for pain, energy first for energy.
+    private var dailyCards: [DeckCard] {
+        let goals = Set(profile.goals ?? [])
+        if goals.contains(.mood) || goals.isEmpty { return [.mood, .energy, .chips] }
+        if goals.contains(.pain) { return [.chips, .mood, .energy] }
+        if goals.contains(.energy) { return [.energy, .mood, .chips] }
+        return [.mood, .energy, .chips]
     }
 
     func contextualCard(on date: Date) -> DeckCard? {
@@ -62,7 +72,7 @@ struct DeckPlanner {
     func symptomOrder(on date: Date) -> [Symptom] {
         let history = engine.logs.filter { $0.date < calendar.startOfDay(for: date) }
         guard let first = history.first, engine.days(from: first.date, to: date) >= Self.reorderAfterDays else {
-            return Symptom.catalog
+            return goalOrder
         }
         let counts = Dictionary(uniqueKeysWithValues: Symptom.catalog.map { symptom in
             (symptom.id, history.filter { $0.said(symptom.id) }.count)
@@ -70,6 +80,20 @@ struct DeckPlanner {
         // Stable: ties keep the default order.
         return Symptom.catalog.enumerated()
             .sorted { (counts[$0.element.id] ?? 0, -$0.offset) > (counts[$1.element.id] ?? 0, -$1.offset) }
+            .map(\.element)
+    }
+
+    /// Before her own history says otherwise, the symptoms behind her
+    /// goals come first.
+    private var goalOrder: [Symptom] {
+        let goals = profile.goals ?? []
+        var first: [String] = []
+        if goals.contains(.pain) { first += ["cramps", "headache", "bloating"] }
+        if goals.contains(.mood) { first += ["low", "anxious", "irritable"] }
+        if goals.contains(.energy) { first += ["poor-sleep"] }
+        let rank = { (id: String) in first.firstIndex(of: id) ?? first.count }
+        return Symptom.catalog.enumerated()
+            .sorted { (rank($0.element.id), $0.offset) < (rank($1.element.id), $1.offset) }
             .map(\.element)
     }
 

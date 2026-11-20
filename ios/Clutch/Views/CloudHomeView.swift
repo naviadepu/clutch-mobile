@@ -100,6 +100,7 @@ struct FeatureScreen: View {
         case .cravings: CravingsView()
         case .windDown: WindDownView()
         case .request: RequestView()
+        case .importData: ImportView()
         case .cloud, .today: CloudHomeView()
         }
     }

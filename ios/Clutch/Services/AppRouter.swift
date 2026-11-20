@@ -6,7 +6,7 @@ final class AppRouter: ObservableObject {
     static let shared = AppRouter()
 
     enum Route: String, Identifiable {
-        case today, tracker, cloud, hardTime = "hard-time", cravings, windDown = "wind-down", request
+        case today, tracker, cloud, hardTime = "hard-time", cravings, windDown = "wind-down", request, importData = "import"
         var id: String { rawValue }
     }
 

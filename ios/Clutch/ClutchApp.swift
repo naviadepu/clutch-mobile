@@ -31,6 +31,9 @@ struct ClutchApp: App {
                 #endif
             }
             .onOpenURL { AppRouter.shared.handle($0) }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                HealthSync.shared.syncIfConnected()
+            }
         }
     }
 }
@@ -120,15 +123,12 @@ enum DebugLaunch {
 struct DebugQuestionScreen: View {
     let step: Int
 
-    @State private var profile = CycleProfile()
-
     var body: some View {
-        switch step {
-        case 1: NameEntryView()
-        case 3: LastPeriodView(signature: nil, profile: $profile)
-        case 4: CycleLengthView(signature: nil, profile: $profile)
-        case 5: OnboardingPayoffView(signature: nil, profile: $profile)
-        default: AgeEntryView()
+        if step == 1 {
+            NameEntryView()
+        } else {
+            let steps = OnboardingPlan.Step.allCases
+            OnboardingFlow(signature: nil, startAt: steps[min(max(step - 2, 0), steps.count - 1)], ready: step - 2 >= steps.count)
         }
     }
 }
