@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>UIUserInterfaceStyle</key>
+	<string>Light</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Clutch only reads your cycle history from Health and never writes to it.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Clutch reads your period and symptom history (for example from Clue or Flo) to make your cycle predictions more accurate. It never writes to Health or shares this data.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -20,28 +26,67 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>FacebookAppID</key>
+	<string></string>
+	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS</key>
+	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.love.clutch</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>clutch</string>
+			</array>
+		</dict>
+	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>instagram-stories</string>
+		<string>instagram</string>
+		<string>comgooglemaps</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>UILaunchScreen</key>
-	<dict>
-		<key>UIColorName</key>
-		<string>AccentColor</string>
-	</dict>
-	<key>UIApplicationSceneManifest</key>
-	<dict>
-		<key>UIApplicationSupportsMultipleScenes</key>
-		<true/>
-	</dict>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Clutch uses your location to match you with nearby givers and requesters on campus.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Clutch uses your location only to show the nearest free period product spots first. It stays on your phone.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Clutch saves your bouquet to Photos when you tap Save.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>PinyonScript-Regular.ttf</string>
+		<string>PlayfairDisplay-SemiBold.ttf</string>
+		<string>DotoRounded-Medium.ttf</string>
+		<string>Quicksand-Light.ttf</string>
+		<string>Quicksand-Regular.ttf</string>
+		<string>DMSans-Regular.ttf</string>
+		<string>InterTight-SemiBold.ttf</string>
+		<string>CormorantGaramond-Light.ttf</string>
+		<string>DMSans-Light.ttf</string>
+		<string>Sofia-Regular.ttf</string>
+		<string>Fredoka-SemiBold.ttf</string>
+	</array>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+	</dict>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
 </dict>
 </plist>

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "student-center-east-2nd-floor",
+    "name": "Student Center East",
+    "floor": "2nd floor",
+    "directions": "2nd floor restroom",
+    "category": "campusRestroom",
+    "latitude": 33.75190,
+    "longitude": -84.38400,
+    "items": ["periodProducts"],
+    "stockStatus": "stocked",
+    "lastVerified": "2026-09-22"
+  },
+  {
+    "id": "sga-office",
+    "name": "SGA Office",
+    "directions": "Student Government Association office",
+    "category": "campusBuilding",
+    "latitude": 33.75250,
+    "longitude": -84.38500,
+    "items": ["periodProducts"],
+    "stockStatus": "stocked",
+    "lastVerified": "2026-09-22",
+    "refilledBy": "Student Government"
+  }
+]

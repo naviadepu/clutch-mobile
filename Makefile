@@ -10,7 +10,7 @@ IOS_DIR      := ios
 XCODEPROJ    := $(IOS_DIR)/Clutch.xcodeproj
 SCHEME       := Clutch
 SIM_DEST     := platform=iOS Simulator,name=iPhone 17
-FIREBASE_PROJECT := demo-clutch
+FIREBASE_PROJECT := clutch-a5cb3
 
 .PHONY: help doctor project deps emulators emulators-persist app test build clean seed
 

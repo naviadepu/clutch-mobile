@@ -2,6 +2,8 @@ import Foundation
 import FirebaseCore
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseAnalytics
+import FirebaseCrashlytics
 
 /// Central Firebase setup. In DEBUG builds the app points at the local
 /// Firebase Emulator Suite (`firebase emulators:start`) unless the
@@ -24,6 +26,15 @@ enum FirebaseBootstrap {
     static func configure() {
         guard FirebaseApp.app() == nil else { return }
         FirebaseApp.configure()
+
+        // Only count real testers: keep simulator / dev runs out of
+        // Analytics and Crashlytics. Crash reports carry no cycle data.
+        #if DEBUG
+        Analytics.setAnalyticsCollectionEnabled(false)
+        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(false)
+        #else
+        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+        #endif
 
         guard useEmulators else {
             print("🔥 Firebase configured against production project.")
