@@ -135,6 +135,17 @@ final class PeriodImportTests: XCTestCase {
         XCTAssertNotNil(DayLogStore.load(for: day(3)))
     }
 
+    /// Many Clue users log only the first day of each period. That's a start,
+    /// not a one-day period.
+    func testStartOnlyHistoryKeepsAUsualPeriodLength() {
+        let days = [1, 29].map { ImportedDay(date: day($0), flow: .medium) }
+        PeriodImport.merge(days, source: .clue)
+        let logs = DayLogStore.allLogs().filter { $0.date >= day(1) && $0.date <= day(31) }
+        let engine = CycleEngine(logs: logs, profile: CycleProfile())
+        XCTAssertEqual(engine.periodStarts.count, 2)
+        XCTAssertEqual(engine.usualPeriodLength, CycleProfile.typicalPeriodLength)
+    }
+
     func testImportedHistoryDrivesCycleLengths() {
         let days = [1, 2, 3, 29, 30, 31].map { ImportedDay(date: day($0), flow: .medium) }
         PeriodImport.merge(days, source: .clue)

@@ -70,7 +70,10 @@ extension CycleEngine {
             guard let log = log(on: day(offset, from: start)) else { break }
             if log.flow?.isBleeding == true || log.periodStarted { last = offset } else if last != nil { break }
         }
-        return last.map { $0 + 1 }
+        // Only the first day logged is just "it started" (common in
+        // imported Clue history), not a one-day period: unknown.
+        guard let last, last > 0 else { return nil }
+        return last + 1
     }
 
     // MARK: - Stress and cycle length
