@@ -36,13 +36,12 @@ struct NameEntryView: View {
             .overlay(alignment: .top) {
                 VStack(spacing: 4) {
                     Text("your name")
-                        .font(.custom("CormorantGaramond-Light", size: 50))
-                        .tracking(-0.5)
+                        .font(.custom("Fredoka-SemiBold", size: 46))
+                        .tracking(-1.8)
                         .foregroundStyle(Color(red: 0.10, green: 0.10, blue: 0.12))
 
                     Text("scribble as you want")
-                        .font(.custom("PlayfairDisplay-SemiBold", size: 15))
-                        .tracking(0.3)
+                        .font(.custom("Quicksand-Regular", size: 16))
                         .foregroundStyle(Color(red: 0.10, green: 0.10, blue: 0.12).opacity(0.55))
                 }
                 .multilineTextAlignment(.center)
