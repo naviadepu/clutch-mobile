@@ -10,9 +10,12 @@ struct LetterTile: View {
     var detail: AnyView? = nil
     var isSelected = true
     var height: CGFloat = 44
+    /// Puts `detail` beside the word instead of above it, for short tiles.
+    var detailInline = false
 
     var body: some View {
-        VStack(spacing: 6) {
+        let layout = detailInline ? AnyLayout(HStackLayout(spacing: 5)) : AnyLayout(VStackLayout(spacing: 6))
+        layout {
             if let detail { detail }
             Text(title.uppercased())
                 .font(.custom("HelveticaNeue", size: 11))
@@ -35,6 +38,8 @@ struct TileGrid<Option: Hashable>: View {
     var columns = 2
     var tileHeight: CGFloat = 38
     let title: (Option) -> String
+    /// An SF Symbol shown above each tile's label, if any.
+    var icon: ((Option) -> String)? = nil
     let isSelected: (Option) -> Bool
     let onTap: (Option) -> Void
 
@@ -45,7 +50,7 @@ struct TileGrid<Option: Hashable>: View {
                 HStack(spacing: 0) {
                     ForEach(rows[r], id: \.self) { option in
                         Button { onTap(option) } label: {
-                            LetterTile(title: title(option), isSelected: isSelected(option), height: tileHeight)
+                            LetterTile(title: title(option), detail: icon.map { LogIcon.image($0(option), size: 11) }, isSelected: isSelected(option), height: tileHeight, detailInline: true)
                         }
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(isSelected(option) ? .isSelected : [])
@@ -120,12 +125,14 @@ struct FlowCard: View {
 
 // MARK: - Mood and energy
 
-/// Five tiles, 1 to 5, one tap.
+/// Five tiles, 1 to 5, each a picture and its word, one tap.
 struct LevelCard: View {
     let word: String
     let aura: Int
     let question: String
     let titles: [String]
+    /// The picture on each tile, given its level (1–5).
+    let icon: (Int) -> AnyView
     let onPick: (Int) -> Void
 
     var body: some View {
@@ -134,19 +141,12 @@ struct LevelCard: View {
                 HStack(spacing: 0) {
                     ForEach(titles.indices, id: \.self) { index in
                         Button { onPick(index + 1) } label: {
-                            LetterTile(title: "\(index + 1)", height: 48)
+                            LetterTile(title: titles[index], detail: icon(index + 1), height: 58)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(titles[index])
                     }
                 }
-                HStack {
-                    Text(titles.first ?? "")
-                    Spacer()
-                    Text(titles.last ?? "")
-                }
-                .font(.custom("HelveticaNeue", size: 10))
-                .opacity(0.8)
             }
         }
     }
@@ -169,6 +169,7 @@ struct ChipsCard: View {
                     columns: 3,
                     tileHeight: 32,
                     title: { id in Symptom.named(id)?.label ?? "None" },
+                    icon: LogIcon.symptom,
                     isSelected: { chosen.contains($0) },
                     onTap: tap
                 )
@@ -203,6 +204,7 @@ struct HelpedCard: View {
                     columns: 3,
                     tileHeight: 34,
                     title: \.title,
+                    icon: LogIcon.helper,
                     isSelected: { chosen.contains($0) },
                     onTap: toggle
                 )

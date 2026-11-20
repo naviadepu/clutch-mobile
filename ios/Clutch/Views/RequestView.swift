@@ -1,4 +1,5 @@
 import CoreLocation
+import MapKit
 import SwiftUI
 import UIKit
 
@@ -13,15 +14,25 @@ struct RequestView: View {
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var nearby = NearbyLocationProvider()
+    @StateObject private var community = SharedSpotReports()
+    #if DEBUG
+    /// `-showMap` opens on the map, for screenshots.
+    @State private var showMap = ProcessInfo.processInfo.arguments.contains("-showMap")
+    #else
+    @State private var showMap = false
+    #endif
 
     @State private var askedForLocation = false
     @State private var reported: Set<String> = []
     @State private var suggesting = false
     @State private var selected: ProductLocation?
 
+    /// The bundled spots with what other people reported on top, nearest
+    /// first once she's shared her location.
     private var sorted: [ProductLocation] {
-        guard let here = nearby.location else { return locations }
-        return ProductLocationStore.sortedByDistance(from: here, in: locations)
+        let current = locations.map(community.apply)
+        guard let here = nearby.location else { return current }
+        return ProductLocationStore.sortedByDistance(from: here, in: current)
     }
 
     var body: some View {
@@ -42,14 +53,20 @@ struct RequestView: View {
                             .padding(.top, 18)
                     }
 
+                    if !locations.isEmpty {
+                        viewToggle.padding(.top, 22)
+                    }
+
                     Group {
                         if locations.isEmpty {
                             emptyState
+                        } else if showMap {
+                            spotMap
                         } else {
                             spotGrid
                         }
                     }
-                    .padding(.top, 40)
+                    .padding(.top, 24)
 
                     suggestFooter
                         .padding(.top, 36)
@@ -67,10 +84,13 @@ struct RequestView: View {
                 location: location,
                 distance: distanceText(to: location),
                 justReported: reported.contains(location.id),
-                onReportEmpty: { reportEmpty(location) }
+                onReportEmpty: { reportEmpty(location) },
+                onReportStocked: { reportStocked(location) }
             )
         }
         .onAppear(perform: askForLocationOnce)
+        .task { community.start() }
+        .onDisappear { community.stop() }
     }
 
     private func card(for location: ProductLocation) -> some View {
@@ -188,7 +208,79 @@ struct RequestView: View {
 
     private func reportEmpty(_ location: ProductLocation) {
         SpotReports.reportEmpty(location.id)
+        SharedSpotReports.report(location.id, kind: .empty)
         withAnimation(.easeInOut(duration: 0.2)) { _ = reported.insert(location.id) }
+    }
+
+    private func reportStocked(_ location: ProductLocation) {
+        SharedSpotReports.report(location.id, kind: .stocked)
+        withAnimation(.easeInOut(duration: 0.2)) { _ = reported.insert(location.id) }
+    }
+
+    // MARK: Map
+
+    private var viewToggle: some View {
+        HStack(spacing: 8) {
+            toggleChip("List", "square.grid.2x2", on: !showMap) { showMap = false }
+            toggleChip("Map", "map", on: showMap) { showMap = true }
+        }
+    }
+
+    private func toggleChip(_ title: String, _ symbol: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button { withAnimation(.easeInOut(duration: 0.2)) { action() } } label: {
+            HStack(spacing: 6) {
+                Image(systemName: symbol).font(.system(size: 11, weight: .light))
+                SmallLabel(title)
+            }
+            .foregroundStyle(on ? Paper.cream : Paper.ink)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .background(on ? Paper.ink : Paper.cream, in: Capsule())
+            .shadow(color: Paper.shadow, radius: 10, y: 5)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private var spotMap: some View {
+        Map(initialPosition: .automatic) {
+            UserAnnotation()
+            ForEach(sorted) { location in
+                Annotation(location.name, coordinate: location.coordinate, anchor: .bottom) {
+                    Button { selected = location } label: { pin(for: location) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(location.name), \(location.stockStatus.label)")
+                }
+            }
+        }
+        .mapStyle(.standard(pointsOfInterest: .excludingAll))
+        .frame(height: 460)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .shadow(color: Paper.shadow, radius: 16, y: 8)
+    }
+
+    /// A drop on a cream tag, tinted by how stocked the spot is.
+    private func pin(for location: ProductLocation) -> some View {
+        let tint: Color = switch location.stockStatus {
+        case .stocked: Color.matcha
+        case .low: Color(hex: 0xE3A44B)
+        case .empty: Color(hex: 0xB9A9A2)
+        case .unknown: Color(hex: 0xE58DAA)
+        }
+        return VStack(spacing: 0) {
+            Image(systemName: "drop.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(tint, in: Circle())
+                .overlay(Circle().strokeBorder(.white, lineWidth: 2.5))
+            Image(systemName: "triangle.fill")
+                .font(.system(size: 9))
+                .foregroundStyle(tint)
+                .rotationEffect(.degrees(180))
+                .offset(y: -3)
+        }
+        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
     }
 }
 
@@ -452,6 +544,7 @@ private struct SpotDetailSheet: View {
     let distance: String?
     let justReported: Bool
     let onReportEmpty: () -> Void
+    let onReportStocked: () -> Void
 
     var body: some View {
         ScrollView {
@@ -507,16 +600,30 @@ private struct SpotDetailSheet: View {
 
                     Spacer(minLength: 0)
 
-                    Button(action: onReportEmpty) {
+                    if justReported {
                         HStack(spacing: 6) {
-                            Image(systemName: justReported ? "checkmark" : "exclamationmark.bubble")
-                                .font(.system(size: 10, weight: .light))
-                            SmallLabel(justReported ? "Thanks, noted" : "Report empty")
+                            Image(systemName: "checkmark").font(.system(size: 10, weight: .light))
+                            SmallLabel("Thanks, noted")
                         }
-                        .foregroundStyle(Paper.soft.opacity(justReported ? 0.7 : 1))
+                        .foregroundStyle(Paper.soft.opacity(0.7))
+                    } else {
+                        Button(action: onReportStocked) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "hand.thumbsup").font(.system(size: 10, weight: .light))
+                                SmallLabel("It's stocked")
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Paper.soft)
+                        Button(action: onReportEmpty) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.bubble").font(.system(size: 10, weight: .light))
+                                SmallLabel("Report empty")
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Paper.soft)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(justReported)
                 }
                 .padding(.top, 20)
             }

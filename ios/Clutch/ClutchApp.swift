@@ -9,7 +9,11 @@ struct ClutchApp: App {
         WindowGroup {
             NavigationStack {
                 #if DEBUG
-                if DebugLaunch.requestScreen {
+                if let route = DebugLaunch.openRoute {
+                    FeatureScreen(route: route)
+                } else if DebugLaunch.mascotGallery {
+                    DebugMascotGallery()
+                } else if DebugLaunch.requestScreen {
                     RequestView(locations: DebugLaunch.sampleSpots ? ProductLocation.samples : ProductLocationStore.all)
                 } else if DebugLaunch.cardGallery {
                     DebugCardGallery()
@@ -26,6 +30,7 @@ struct ClutchApp: App {
                 LandingView()
                 #endif
             }
+            .onOpenURL { AppRouter.shared.handle($0) }
         }
     }
 }
@@ -39,6 +44,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         #if DEBUG
         _ = DebugLaunch.demoHistory
         #endif
+        WidgetBridge.refresh()
         return true
     }
 }
@@ -57,6 +63,16 @@ enum DebugLaunch {
 
     /// `-cardGallery` shows every kind of deck card, for checking layout.
     static let cardGallery = ProcessInfo.processInfo.arguments.contains("-cardGallery")
+
+    /// `-mascotGallery` shows the widget cloud's scenes at widget sizes;
+    /// `-galleryPage N` picks which four.
+    static let mascotGallery = ProcessInfo.processInfo.arguments.contains("-mascotGallery")
+
+    /// `-open tracker` (or cloud, hard-time, cravings, wind-down) opens
+    /// that screen on its own.
+    static let openRoute: AppRouter.Route? = ProcessInfo.processInfo.arguments
+        .firstIndex(of: "-open")
+        .flatMap { AppRouter.Route(rawValue: ProcessInfo.processInfo.arguments[$0 + 1]) }
 
     /// `-details` opens "See full details" on its own. Add `-sampleHistory`
     /// to first replace every saved log with four logged cycles of sample
@@ -128,8 +144,8 @@ struct DebugCardGallery: View {
 
     private var cards: [AnyView] {
         [
-            AnyView(LevelCard(word: "mood", aura: 0, question: "How's your mood today?", titles: LevelScale.moodTitles) { _ in }),
-            AnyView(LevelCard(word: "energy", aura: 1, question: "How's your energy today?", titles: LevelScale.energyTitles) { _ in }),
+            AnyView(LevelCard(word: "mood", aura: 0, question: "How's your mood today?", titles: LevelScale.moodTitles, icon: { AnyView(MoodFace(level: $0)) }) { _ in }),
+            AnyView(LevelCard(word: "energy", aura: 1, question: "How's your energy today?", titles: LevelScale.energyTitles, icon: { LogIcon.image(LogIcon.energy($0), size: 15) }) { _ in }),
             AnyView(ChipsCard(symptoms: Symptom.catalog) { _ in }),
             AnyView(FlowCard(onPick: { _ in }, onEnded: {})),
             AnyView(HelpedCard(question: "Yesterday was rough. What helped?", options: Helper.options + [.nothingReally]) { _ in }),
@@ -185,6 +201,36 @@ enum DebugSampleHistory {
         profile.lastPeriodStart = calendar.date(byAdding: .day, value: 28 * 4, to: first)
         profile.onboardingComplete = includingToday
         profile.save()
+    }
+}
+#endif
+
+#if DEBUG
+/// The cloud's scenes as small and medium widgets, four to a screen.
+struct DebugMascotGallery: View {
+    private let page = ProcessInfo.processInfo.arguments
+        .firstIndex(of: "-galleryPage")
+        .flatMap { Int(ProcessInfo.processInfo.arguments[$0 + 1]) } ?? 0
+
+    var body: some View {
+        let scenes = Array(MascotScene.allCases.dropFirst(page * 4).prefix(4))
+        VStack(spacing: 14) {
+            ForEach(scenes) { scene in
+                HStack(spacing: 14) {
+                    MascotSceneView(scene: scene, hasFlower: scene == .walk)
+                        .frame(width: 158, height: 158)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(scene.rawValue).font(.caption.bold())
+                        Text(scene.line).font(.caption)
+                    }
+                    Spacer()
+                }
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.cream)
     }
 }
 #endif

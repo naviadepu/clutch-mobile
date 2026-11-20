@@ -177,6 +177,7 @@ enum DayLogStore {
     static func save(_ log: DayLog) {
         guard let data = try? JSONEncoder().encode(log) else { return }
         defaults.set(data, forKey: key(for: log.date))
+        WidgetBridge.setNeedsRefresh()
     }
 
     /// Loads or mints today's log, so the seed (and therefore the garden's

@@ -63,6 +63,10 @@ struct LandingView: View {
             .onTapGesture {
                 if readyToContinue { goToNameEntry = true }
             }
+            // A widget tap for someone already onboarded skips the intro.
+            .onReceive(AppRouter.shared.$pending) { route in
+                if route != nil && isReturning { goToNameEntry = true }
+            }
             .navigationDestination(isPresented: $goToNameEntry) {
                 Group {
                     if isReturning { GardenView() } else { NameEntryView() }

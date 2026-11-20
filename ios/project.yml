@@ -25,6 +25,12 @@ targets:
     platform: iOS
     sources:
       - path: Clutch
+      - path: Shared
+    entitlements:
+      path: Clutch/Clutch.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.love.clutch
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.love.clutch
@@ -35,12 +41,35 @@ targets:
         ENABLE_PREVIEWS: true
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:
+      - target: ClutchWidget
       - package: Firebase
         product: FirebaseAuth
       - package: Firebase
         product: FirebaseFirestore
       - package: Firebase
         product: FirebaseAnalytics
+
+  ClutchWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ClutchWidget
+      - path: Shared
+    entitlements:
+      path: ClutchWidget/ClutchWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.love.clutch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.love.clutch.widget
+        INFOPLIST_FILE: ClutchWidget/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: true
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
 
   ClutchTests:
     type: bundle.unit-test

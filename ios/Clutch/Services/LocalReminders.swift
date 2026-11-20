@@ -19,6 +19,36 @@ enum LocalReminders {
         )) != nil
     }
 
+    /// A reminder that replaces any earlier one with the same id, so
+    /// rescheduling never stacks duplicates. `repeatsDaily` keeps only the
+    /// hour and minute.
+    @discardableResult
+    static func schedule(id: String, body: String, at date: Date, repeatsDaily: Bool = false, calendar: Calendar = .current) async -> Bool {
+        guard await authorized() else { return false }
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [id])
+        let content = UNMutableNotificationContent()
+        content.title = "Clutch"
+        content.body = body
+        content.sound = .default
+        let parts: Set<Calendar.Component> = repeatsDaily ? [.hour, .minute] : [.year, .month, .day, .hour, .minute]
+        let trigger = UNCalendarNotificationTrigger(dateMatching: calendar.dateComponents(parts, from: date), repeats: repeatsDaily)
+        return (try? await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))) != nil
+    }
+
+    static func cancel(id: String) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+    }
+
+    /// Asks for permission now (from a toggle she just turned on).
+    static func requestPermission() async -> Bool { await authorized() }
+
+    /// True only if she's already said yes; never prompts.
+    static func alreadyAuthorized() async -> Bool {
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        return status == .authorized || status == .provisional
+    }
+
     /// Asks the first time; `false` if she's said no.
     private static func authorized() async -> Bool {
         let center = UNUserNotificationCenter.current()

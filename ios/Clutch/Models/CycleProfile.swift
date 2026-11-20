@@ -70,6 +70,7 @@ struct CycleProfile: Codable, Equatable {
     func save(to defaults: UserDefaults = .standard) {
         guard let data = try? JSONEncoder().encode(self) else { return }
         defaults.set(data, forKey: Self.storageKey)
+        WidgetBridge.setNeedsRefresh()
     }
 }
 

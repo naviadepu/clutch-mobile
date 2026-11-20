@@ -1,0 +1,381 @@
+{
+ "cards": [
+  {
+   "id": "dark-choc-strawberries",
+   "title": "Dark chocolate + strawberries",
+   "why": "Real chocolate, plus fruit. Dark chocolate has some magnesium, which some people find helps with cramps.",
+   "minutes": 2,
+   "where": "dorm",
+   "cravings": [
+    "chocolate",
+    "sweet"
+   ],
+   "tags": [
+    "magnesium"
+   ],
+   "short": "Choc strawberries",
+   "icon": "heart.fill"
+  },
+  {
+   "id": "hot-cocoa",
+   "title": "Hot cocoa made with milk",
+   "why": "Warm, chocolatey and cozy, with a little calcium and protein from the milk.",
+   "minutes": 5,
+   "where": "dorm",
+   "cravings": [
+    "chocolate",
+    "warm",
+    "sweet"
+   ],
+   "tags": [],
+   "short": "Hot cocoa",
+   "icon": "cup.and.heat.waves.fill"
+  },
+  {
+   "id": "choc-almonds",
+   "title": "Dark chocolate almonds",
+   "why": "Chocolate and crunch together. Almonds bring magnesium and staying power.",
+   "minutes": 1,
+   "where": "campus",
+   "cravings": [
+    "chocolate",
+    "crunchy"
+   ],
+   "tags": [
+    "magnesium"
+   ],
+   "short": "Choc almonds",
+   "icon": "circle.hexagongrid.fill"
+  },
+  {
+   "id": "choc-banana",
+   "title": "Frozen banana dipped in chocolate",
+   "why": "Tastes like an ice cream bar. Bananas have potassium and vitamin B6.",
+   "minutes": 10,
+   "where": "kitchen",
+   "cravings": [
+    "chocolate",
+    "sweet",
+    "cold"
+   ],
+   "tags": [],
+   "short": "Choc banana pops",
+   "icon": "snowflake"
+  },
+  {
+   "id": "choc-milk",
+   "title": "Chocolate milk",
+   "why": "Sweet, cold and quick, with protein to keep you going.",
+   "minutes": 1,
+   "where": "campus",
+   "cravings": [
+    "chocolate",
+    "cold"
+   ],
+   "tags": [],
+   "short": "Chocolate milk",
+   "icon": "waterbottle.fill"
+  },
+  {
+   "id": "yogurt-honey",
+   "title": "Greek yogurt, honey and berries",
+   "why": "Creamy and sweet, with protein that keeps you full longer.",
+   "minutes": 3,
+   "where": "dorm",
+   "cravings": [
+    "sweet",
+    "cold"
+   ],
+   "tags": [],
+   "short": "Yogurt + berries",
+   "icon": "drop.fill"
+  },
+  {
+   "id": "frozen-grapes",
+   "title": "Frozen grapes",
+   "why": "Like tiny sorbet bites. Sweet, icy and refreshing.",
+   "minutes": 1,
+   "where": "dorm",
+   "cravings": [
+    "sweet",
+    "cold"
+   ],
+   "tags": [],
+   "short": "Frozen grapes",
+   "icon": "circle.grid.3x3.fill"
+  },
+  {
+   "id": "stuffed-dates",
+   "title": "Dates with peanut butter",
+   "why": "Tastes like caramel. Dates bring fiber and a little iron.",
+   "minutes": 2,
+   "where": "dorm",
+   "cravings": [
+    "sweet"
+   ],
+   "tags": [
+    "iron"
+   ],
+   "short": "Dates + PB",
+   "icon": "bolt.fill"
+  },
+  {
+   "id": "apple-pb",
+   "title": "Apple slices + peanut butter",
+   "why": "Sweet, crunchy and creamy at once.",
+   "minutes": 3,
+   "where": "dorm",
+   "cravings": [
+    "sweet",
+    "crunchy"
+   ],
+   "tags": [],
+   "short": "Apple + PB",
+   "icon": "leaf.fill"
+  },
+  {
+   "id": "smoothie",
+   "title": "Berry and spinach smoothie",
+   "why": "Cold, sweet and thick. You won't taste the spinach, but it adds iron.",
+   "minutes": 5,
+   "where": "kitchen",
+   "cravings": [
+    "sweet",
+    "cold"
+   ],
+   "tags": [
+    "iron"
+   ],
+   "short": "Berry smoothie",
+   "icon": "takeoutbag.and.cup.and.straw.fill"
+  },
+  {
+   "id": "popcorn",
+   "title": "Popcorn with sea salt",
+   "why": "Big bowl, lots of crunch, and it's a whole grain.",
+   "minutes": 4,
+   "where": "dorm",
+   "cravings": [
+    "salty",
+    "crunchy"
+   ],
+   "tags": [],
+   "short": "Sea salt popcorn",
+   "icon": "popcorn.fill"
+  },
+  {
+   "id": "chickpeas",
+   "title": "Roasted chickpeas",
+   "why": "Crunchy and salty like chips, with protein and iron.",
+   "minutes": 2,
+   "where": "campus",
+   "cravings": [
+    "salty",
+    "crunchy"
+   ],
+   "tags": [
+    "iron"
+   ],
+   "short": "Roasted chickpeas",
+   "icon": "circle.grid.2x2.fill"
+  },
+  {
+   "id": "edamame",
+   "title": "Salted edamame",
+   "why": "Warm, salty and poppable. Protein and iron in every handful.",
+   "minutes": 4,
+   "where": "dorm",
+   "cravings": [
+    "salty",
+    "warm"
+   ],
+   "tags": [
+    "iron"
+   ],
+   "short": "Salted edamame",
+   "icon": "leaf.circle.fill"
+  },
+  {
+   "id": "pumpkin-seeds",
+   "title": "Trail mix with pumpkin seeds",
+   "why": "Sweet, salty and crunchy. Pumpkin seeds are high in magnesium and iron.",
+   "minutes": 1,
+   "where": "campus",
+   "cravings": [
+    "salty",
+    "crunchy",
+    "sweet"
+   ],
+   "tags": [
+    "magnesium",
+    "iron"
+   ],
+   "short": "Trail mix",
+   "icon": "sparkles"
+  },
+  {
+   "id": "cheese-crackers",
+   "title": "Cheese and whole-grain crackers",
+   "why": "The salty, crunchy combo, with protein from the cheese.",
+   "minutes": 2,
+   "where": "dorm",
+   "cravings": [
+    "salty",
+    "crunchy"
+   ],
+   "tags": [],
+   "short": "Cheese + crackers",
+   "icon": "square.grid.2x2.fill"
+  },
+  {
+   "id": "pickles",
+   "title": "Pickles or olives",
+   "why": "Salty fast. Sometimes that's all the craving wants.",
+   "minutes": 1,
+   "where": "dorm",
+   "cravings": [
+    "salty"
+   ],
+   "tags": [],
+   "short": "Pickles or olives",
+   "icon": "capsule.fill"
+  },
+  {
+   "id": "rice-cake-avo",
+   "title": "Rice cakes with avocado and chili flakes",
+   "why": "Crunchy, creamy and a little spicy.",
+   "minutes": 4,
+   "where": "dorm",
+   "cravings": [
+    "crunchy",
+    "salty"
+   ],
+   "tags": [],
+   "short": "Avo rice cakes",
+   "icon": "circle.circle.fill"
+  },
+  {
+   "id": "oatmeal",
+   "title": "Oatmeal with cinnamon and banana",
+   "why": "Warm, filling carbs that give steady energy instead of a crash.",
+   "minutes": 5,
+   "where": "dorm",
+   "cravings": [
+    "carbs",
+    "warm",
+    "sweet"
+   ],
+   "tags": [],
+   "short": "Banana oatmeal",
+   "icon": "sun.max.fill"
+  },
+  {
+   "id": "pb-toast",
+   "title": "Toast with peanut butter and honey",
+   "why": "Carbs and comfort. The peanut butter keeps you full longer.",
+   "minutes": 4,
+   "where": "dorm",
+   "cravings": [
+    "carbs",
+    "sweet"
+   ],
+   "tags": [],
+   "short": "PB honey toast",
+   "icon": "square.stack.fill"
+  },
+  {
+   "id": "spinach-pasta",
+   "title": "Pasta with spinach and parmesan",
+   "why": "A big cozy bowl. Spinach adds iron, which matters around your period.",
+   "minutes": 15,
+   "where": "kitchen",
+   "cravings": [
+    "carbs",
+    "warm",
+    "salty"
+   ],
+   "tags": [
+    "iron"
+   ],
+   "short": "Spinach pasta",
+   "icon": "fork.knife"
+  },
+  {
+   "id": "sweet-potato",
+   "title": "Microwave sweet potato",
+   "why": "Butter, cinnamon, done. Sweet, warm and filling.",
+   "minutes": 8,
+   "where": "dorm",
+   "cravings": [
+    "carbs",
+    "warm",
+    "sweet"
+   ],
+   "tags": [],
+   "short": "Sweet potato",
+   "icon": "flame.fill"
+  },
+  {
+   "id": "ramen-egg",
+   "title": "Instant ramen with an egg and greens",
+   "why": "Brothy, salty comfort. The egg and greens add protein and iron.",
+   "minutes": 8,
+   "where": "kitchen",
+   "cravings": [
+    "carbs",
+    "warm",
+    "salty"
+   ],
+   "tags": [
+    "iron"
+   ],
+   "short": "Ramen + egg",
+   "icon": "frying.pan.fill"
+  },
+  {
+   "id": "ginger-tea",
+   "title": "Ginger tea with honey",
+   "why": "Warm and soothing. Ginger may ease period pain and queasiness for some people.",
+   "minutes": 4,
+   "where": "dorm",
+   "cravings": [
+    "warm",
+    "sweet"
+   ],
+   "tags": [],
+   "short": "Ginger tea",
+   "icon": "mug.fill"
+  },
+  {
+   "id": "miso-soup",
+   "title": "Cup of miso soup",
+   "why": "Warm and salty in two minutes.",
+   "minutes": 2,
+   "where": "dorm",
+   "cravings": [
+    "warm",
+    "salty"
+   ],
+   "tags": [],
+   "short": "Miso soup",
+   "icon": "cup.and.saucer.fill"
+  },
+  {
+   "id": "froyo-bark",
+   "title": "Frozen yogurt bark",
+   "why": "Yogurt, berries and dark chocolate chips, frozen and snapped.",
+   "minutes": 10,
+   "where": "kitchen",
+   "cravings": [
+    "cold",
+    "sweet",
+    "chocolate"
+   ],
+   "tags": [
+    "magnesium"
+   ],
+   "short": "Froyo bark",
+   "icon": "snowflake.circle.fill"
+  }
+ ]
+}

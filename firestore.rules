@@ -16,6 +16,22 @@ service cloud.firestore {
       allow read, write: if isOwner(uid);
     }
 
+    // Shared "report empty" / "it's stocked" taps for free-product spots.
+    // Anyone signed in can read them and add their own; nobody can edit or
+    // delete one. No personal or cycle data: a spot id, a kind, the
+    // anonymous uid and a server timestamp.
+    match /spotReports/{report} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['locationId', 'kind', 'uid', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.locationId is string
+        && request.resource.data.locationId.size() < 100
+        && request.resource.data.kind in ['empty', 'stocked']
+        && request.resource.data.at == request.time;
+      allow update, delete: if false;
+    }
+
     // Per-user data, for anything synced later.
     match /users/{uid}/{document=**} {
       allow read, write: if isOwner(uid);

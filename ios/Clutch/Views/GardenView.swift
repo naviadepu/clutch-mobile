@@ -40,6 +40,10 @@ struct GardenView: View {
     private static let mutedInk = Color.mutedInk
 
     @State private var selectedDockItem: DockItem = .garden
+    /// A feature screen opened from the cloud, the dock or a widget tap.
+    @State private var feature: AppRouter.Route?
+    @ObservedObject private var router = AppRouter.shared
+    @State private var cloudBob = false
 
     var body: some View {
         ZStack {
@@ -64,7 +68,9 @@ struct GardenView: View {
                             .foregroundStyle(Self.ink)
                             .multilineTextAlignment(.center)
                             .animation(.easeInOut(duration: 0.3), value: promptText)
-                            .padding(.horizontal, 40)
+                            // Room on the right for the cloud.
+                            .padding(.leading, 28)
+                            .padding(.trailing, 96)
                             .opacity(celebration == nil ? 1 : 0)
 
                         if !model.isFinished {
@@ -139,6 +145,25 @@ struct GardenView: View {
             dock
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .opacity(celebration == nil ? 1 : 0)
+
+            if celebration == nil && !showShare {
+                gardenCloud
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(.top, didStart ? 0 : 150)
+                    .padding(.trailing, 14)
+            }
+        }
+        .sheet(item: $feature) { route in
+            FeatureScreen(route: route)
+        }
+        .onReceive(router.$pending) { route in
+            guard let route else { return }
+            router.pending = nil
+            switch route {
+            case .today: break
+            case .request: showRequest = true
+            default: feature = route
+            }
         }
         .sheet(isPresented: $showCollection) {
             BouquetCollectionView(bouquets: collection, streak: streak)
@@ -164,6 +189,28 @@ struct GardenView: View {
             if DebugLaunch.showShare { shareToday() }
             #endif
         }
+    }
+
+    /// The cloud, always nearby: it reacts to today and opens its home.
+    private var gardenCloud: some View {
+        let moment = MascotMoment.make(at: .now, snapshot: CycleSnapshot.load())
+        let face: FuzzyCloud.Face = moment.scene == .sleep ? .sleepy : (moment.scene == .drizzle || moment.line.hasPrefix("Rough")) ? .soft : .happy
+        return Button { feature = .cloud } label: {
+            FuzzyCloud(face: face, gloomy: moment.scene == .drizzle)
+                .frame(width: 74)
+                .overlay(alignment: .topTrailing) {
+                    if moment.sparkle {
+                        Image(systemName: "sparkle").font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color(red: 1, green: 0.84, blue: 0.45))
+                    }
+                }
+                .offset(y: cloudBob ? -3 : 3)
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) { cloudBob = true }
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Your cloud: \(moment.line)")
     }
 
     /// The onboarding scribble framed in a dashed glass box on the left,
@@ -237,13 +284,13 @@ struct GardenView: View {
             Rectangle()
                 .fill(.black.opacity(0.18))
                 .frame(width: 0.6, height: 44)
-                .padding(.bottom, 12)
+                .padding(.bottom, 16)
 
             dockButton(.share)
         }
         .padding(.horizontal, 14)
         .padding(.top, 10)
-        .padding(.bottom, 6)
+        .padding(.bottom, 7)
         .background(.ultraThinMaterial, in: shape)
         .background(.white.opacity(0.3), in: shape)
         .overlay(
@@ -270,17 +317,21 @@ struct GardenView: View {
                 showCollection = true
             } else if item == .request {
                 showRequest = true
+            } else if item == .cycle {
+                feature = .tracker
             } else {
                 selectedDockItem = item
             }
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: 4) {
                 AuraTile(palette: item.palette, symbol: item.symbol)
                     .frame(width: 48, height: 48)
 
-                Circle()
-                    .fill(.black.opacity(isSelected ? 0.55 : 0))
-                    .frame(width: 4, height: 4)
+                Text(item.title)
+                    .font(.custom(isSelected ? "HelveticaNeue-Medium" : "HelveticaNeue", size: 9.5))
+                    .foregroundStyle(.black.opacity(isSelected ? 0.75 : 0.5))
+                    .lineLimit(1)
+                    .fixedSize()
             }
         }
         .buttonStyle(DockButtonStyle())
@@ -546,12 +597,12 @@ private struct SwipeDeck: View {
     private func content(for deckCard: DeckCard) -> some View {
         switch deckCard {
         case .mood:
-            LevelCard(word: "mood", aura: 0, question: "How's your mood today?", titles: LevelScale.moodTitles) { level in
+            LevelCard(word: "mood", aura: 0, question: "How's your mood today?", titles: LevelScale.moodTitles, icon: { AnyView(MoodFace(level: $0)) }) { level in
                 answer("Mood: \(LevelScale.moodTitles[level - 1].lowercased()).") { model.answerMood(level) }
             }
 
         case .energy:
-            LevelCard(word: "energy", aura: 1, question: "How's your energy today?", titles: LevelScale.energyTitles) { level in
+            LevelCard(word: "energy", aura: 1, question: "How's your energy today?", titles: LevelScale.energyTitles, icon: { LogIcon.image(LogIcon.energy($0), size: 15) }) { level in
                 answer("Energy: \(LevelScale.energyTitles[level - 1].lowercased()).") { model.answerEnergy(level) }
             }
 
@@ -753,22 +804,32 @@ struct PolaroidCard: View {
 
 // MARK: - Dock items
 
-/// `garden`, `request`, `bouquets` and `share` are wired up; `cycle` is a
-/// visual placeholder not wired to any destination yet.
+/// Today's log, the cycle tracker, the free-products map, past bouquets,
+/// and sharing today's bouquet.
 private enum DockItem: String, CaseIterable, Identifiable {
     case garden, cycle, request, bouquets, share
 
     static let primary: [DockItem] = [.garden, .cycle, .request, .bouquets]
 
     var id: String { rawValue }
-    var title: String { rawValue.capitalized }
+
+    /// Each tile names and pictures exactly where it goes.
+    var title: String {
+        switch self {
+        case .garden: "Today"
+        case .cycle: "Cycle"
+        case .request: "Free pads"
+        case .bouquets: "Bouquets"
+        case .share: "Share"
+        }
+    }
 
     var symbol: String {
         switch self {
-        case .garden: "leaf"
-        case .cycle: "moon"
-        case .request: "hand.raised"
-        case .bouquets: "rectangle.stack"
+        case .garden: "sun.max"
+        case .cycle: "drop"
+        case .request: "mappin.and.ellipse"
+        case .bouquets: "camera.macro"
         case .share: "square.and.arrow.up"
         }
     }
