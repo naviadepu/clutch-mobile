@@ -62,6 +62,24 @@ final class ClueImportTests: XCTestCase {
         XCTAssertNil(byDay[10]?.flow, "spotting isn't a period")
     }
 
+    func testFeelingsBecomeMoodAndPMSIsKept() throws {
+        let json = """
+        [
+          {"type":"period","date":"2025-03-01","value":{"option":"light"}},
+          {"type":"feelings","date":"2025-03-02","value":[{"option":"happy"}]},
+          {"type":"feelings","date":"2025-03-03","value":[{"option":"sad"},{"option":"sensitive"}]},
+          {"type":"feelings","date":"2025-03-04","value":[{"option":"happy"},{"option":"anxious"}]},
+          {"type":"pms","date":"2025-03-05","value":{"option":"yes"}}
+        ]
+        """
+        let days = try ClueImport.parse(Data(json.utf8))
+        let byDay = Dictionary(uniqueKeysWithValues: days.map { (Calendar.current.component(.day, from: $0.date), $0) })
+        XCTAssertEqual(byDay[2]?.mood, 4)
+        XCTAssertEqual(byDay[3]?.mood, 2)
+        XCTAssertEqual(byDay[4]?.mood, 3)
+        XCTAssertEqual(byDay[5]?.pms, true)
+    }
+
     func testCSV() throws {
         let csv = "Date,Period,Notes\n2022-05-01,Medium,\n2022-05-02,Light,headache\n2022-05-10,,\n"
         let days = try ClueImport.parse(Data(csv.utf8))
@@ -144,6 +162,19 @@ final class PeriodImportTests: XCTestCase {
         let engine = CycleEngine(logs: logs, profile: CycleProfile())
         XCTAssertEqual(engine.periodStarts.count, 2)
         XCTAssertEqual(engine.usualPeriodLength, CycleProfile.typicalPeriodLength)
+    }
+
+    func testImportedMoodAndPMSLandAndUndo() {
+        PeriodImport.merge([
+            ImportedDay(date: day(6), mood: 2),
+            ImportedDay(date: day(7), pms: true),
+        ], source: .clue)
+        XCTAssertEqual(DayLogStore.load(for: day(6))?.mood, 2)
+        let pmsDay = DayLogStore.load(for: day(7))!
+        XCTAssertEqual(pmsDay.premenstrual, true)
+        XCTAssertTrue(CycleEngine(logs: [pmsDay], profile: CycleProfile()).isHardDay(pmsDay), "PMS days count as harder")
+        PeriodImport.undo(.clue)
+        XCTAssertNil(DayLogStore.load(for: day(6)), "an imported mood alone isn't her own answer")
     }
 
     func testImportedHistoryDrivesCycleLengths() {

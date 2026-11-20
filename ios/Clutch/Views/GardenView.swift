@@ -159,6 +159,11 @@ struct GardenView: View {
         .sheet(item: $feature) { route in
             FeatureScreen(route: route)
         }
+        // An import or a fixed date elsewhere: the period chip and the day
+        // count catch up straight away.
+        .onReceive(NotificationCenter.default.publisher(for: .clutchHistoryChanged)) { _ in
+            model.reloadHistory()
+        }
         .onReceive(router.$pending) { route in
             guard let route else { return }
             router.pending = nil

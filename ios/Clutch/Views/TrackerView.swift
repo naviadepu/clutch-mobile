@@ -20,6 +20,12 @@ final class TrackerModel: ObservableObject {
         engine = CycleEngine(logs: DayLogStore.allLogs(), profile: profile)
     }
 
+    /// After an edit here: reload, and let the home screen know.
+    private func changed() {
+        reload()
+        NotificationCenter.default.post(name: .clutchHistoryChanged, object: nil)
+    }
+
     var window: CycleEngine.PeriodWindow? { engine.nextPeriodWindow(after: today) }
     var periodDay: Int? { engine.periodDay(for: today) }
     var cycleDay: Int? { engine.cycleDay(for: today) }
@@ -53,7 +59,7 @@ final class TrackerModel: ObservableObject {
             profile.lastPeriodStart = day
             profile.save()
         }
-        reload()
+        changed()
     }
 
     /// Undo a start logged on the wrong day.
@@ -67,7 +73,7 @@ final class TrackerModel: ObservableObject {
             profile.lastPeriodStart = engine.periodStarts.last { !Calendar.current.isDate($0, inSameDayAs: date) }
             profile.save()
         }
-        reload()
+        changed()
     }
 
     func endPeriod(on date: Date) {
@@ -75,7 +81,7 @@ final class TrackerModel: ObservableObject {
         log.periodEnded = true
         log.flow = .noFlow
         DayLogStore.save(log)
-        reload()
+        changed()
     }
 
     func isStart(_ date: Date) -> Bool {

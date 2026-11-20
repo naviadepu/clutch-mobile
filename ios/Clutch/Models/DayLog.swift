@@ -59,6 +59,9 @@ struct DayLog: Codable, Equatable {
     /// Where data on this day came from when it wasn't logged in Clutch
     /// ("clue", "health"), so an import can be undone.
     var importedFrom: String?
+    /// Marked as a PMS day in another app (Clue's "PMS"). Counts as a
+    /// harder day.
+    var premenstrual: Bool?
 
     init(date: Date, seed: Int) {
         self.date = date
@@ -81,7 +84,7 @@ struct DayLog: Codable, Equatable {
 extension DayLog {
     private enum CodingKeys: String, CodingKey {
         case date, seed, version, flow, mood, energy, symptoms, skipped, helped, helpedNextDay,
-             nothingToday, periodStarted, periodEnded, milestone, answeredCards, leadCard, planted, completed, moodSwings, legacySymptoms, legacySkipped, importedFrom
+             nothingToday, periodStarted, periodEnded, milestone, answeredCards, leadCard, planted, completed, moodSwings, legacySymptoms, legacySkipped, importedFrom, premenstrual
     }
 
     init(from decoder: Decoder) throws {
@@ -117,6 +120,7 @@ extension DayLog {
         legacySymptoms = try c.decodeIfPresent([String].self, forKey: .legacySymptoms)
         legacySkipped = try c.decodeIfPresent([String].self, forKey: .legacySkipped)
         importedFrom = try c.decodeIfPresent(String.self, forKey: .importedFrom)
+        premenstrual = try c.decodeIfPresent(Bool.self, forKey: .premenstrual)
     }
 
     /// Version 1 → 2. "feeling low" and "anxious" already used the ids the

@@ -7,6 +7,16 @@ struct ImportedDay: Equatable {
     var symptoms: Set<String> = []
     /// The other app marked this as the first day of a period.
     var periodStart = false
+    /// 1–5, from feelings logged in the other app.
+    var mood: Int?
+    /// A PMS day in the other app.
+    var pms = false
+}
+
+extension Notification.Name {
+    /// Her stored history changed outside today's check-in (an import, an
+    /// undo, a date fixed in the tracker): screens holding it should reload.
+    static let clutchHistoryChanged = Notification.Name("clutch.historyChanged")
 }
 
 /// Where imported history came from.
@@ -54,6 +64,8 @@ enum PeriodImport {
             }
             merged.symptoms.formUnion(day.symptoms)
             merged.periodStart = merged.periodStart || day.periodStart
+            merged.mood = merged.mood ?? day.mood
+            merged.pms = merged.pms || day.pms
             byDay[key] = merged
         }
 
@@ -65,6 +77,8 @@ enum PeriodImport {
             let herOwn = existing.map(hasOwnAnswers) ?? false
 
             if log.flow == nil, let flow = day.flow { log.flow = flow }
+            if log.mood == nil, let mood = day.mood { log.mood = mood }
+            if day.pms && log.premenstrual == nil { log.premenstrual = true }
             if day.periodStart && !herOwn && day.flow?.isBleeding != false { log.periodStarted = true }
             let known = Set(Symptom.catalog.map(\.id))
             for id in day.symptoms where known.contains(id) && !log.symptoms.contains(id) && !log.skipped.contains(id) {
@@ -76,6 +90,7 @@ enum PeriodImport {
             changed += 1
         }
         adoptLatestStart()
+        if changed > 0 { NotificationCenter.default.post(name: .clutchHistoryChanged, object: nil) }
         return changed
     }
 
@@ -87,11 +102,14 @@ enum PeriodImport {
                 var kept = log
                 kept.importedFrom = nil
                 if !log.answeredCards.contains("flow") { kept.flow = nil }
+                if !log.answeredCards.contains("mood") { kept.mood = nil }
+                kept.premenstrual = nil
                 DayLogStore.save(kept)
             } else {
                 DayLogStore.remove(for: log.date)
             }
         }
+        NotificationCenter.default.post(name: .clutchHistoryChanged, object: nil)
     }
 
     static func hasImported(_ source: ImportSource) -> Bool {
@@ -112,7 +130,9 @@ enum PeriodImport {
 
     /// Anything she answered herself in Clutch.
     private static func hasOwnAnswers(_ log: DayLog) -> Bool {
-        log.completed || log.nothingToday || !log.answeredCards.isEmpty || log.mood != nil || log.legacySymptoms != nil
+        // A mood alone may have come from an import; answers she gave in
+        // Clutch are in `answeredCards`.
+        log.completed || log.nothingToday || !log.answeredCards.isEmpty || log.legacySymptoms != nil
     }
 
     /// An onboarding guess for her last period gives way to the real date

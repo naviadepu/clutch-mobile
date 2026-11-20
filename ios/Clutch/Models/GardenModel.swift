@@ -121,7 +121,7 @@ final class GardenModel: ObservableObject {
     @Published private(set) var profile: CycleProfile
 
     /// Every day before today, oldest first.
-    private let history: [DayLog]
+    private var history: [DayLog]
     private var generator: BouquetGenerator
 
     var currentCard: DeckCard? { isFinished ? nil : deck[currentIndex] }
@@ -160,7 +160,17 @@ final class GardenModel: ObservableObject {
         flowers = (0..<min(today.planted, BouquetGenerator.maxFlowers)).map { _ in generator.next() }
     }
 
-    /// Chips in her order: most common first once there are three weeks.
+    /// Her history changed elsewhere (an import, a date fixed in the
+    /// tracker): re-read it, and today's stored log, without touching the
+    /// deck she's partway through.
+    func reloadHistory() {
+        let dayStart = Calendar.current.startOfDay(for: log.date)
+        history = DayLogStore.allLogs().filter { Calendar.current.startOfDay(for: $0.date) < dayStart }
+        profile = CycleProfile.load() ?? profile
+        if let stored = DayLogStore.load(for: log.date) { log = stored }
+    }
+
+        /// Chips in her order: most common first once there are three weeks.
     var chipOrder: [Symptom] { planner.symptomOrder(on: log.date) }
 
     func upcoming(_ count: Int) -> [DeckCard] {

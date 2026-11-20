@@ -178,6 +178,7 @@ struct CycleEngine {
     /// Mood at least 1 below her baseline, or two or more of low, anxious,
     /// irritable and cramps.
     func isHardDay(_ log: DayLog) -> Bool {
+        if log.premenstrual == true { return true }
         if Set(log.symptoms).intersection(Symptom.hardDayIDs).count >= 2 { return true }
         guard let mood = log.mood, let baseline = baselineMood(before: log.date) else { return false }
         return Double(mood) <= baseline - 1

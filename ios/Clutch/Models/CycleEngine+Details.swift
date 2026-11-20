@@ -48,8 +48,12 @@ extension CycleEngine {
     func nextPeriodWindow(after date: Date) -> PeriodWindow? {
         let today = calendar.startOfDay(for: date)
         guard let last = cycleStart(for: today) else { return nil }
+        // Length from the median of her last 12 cycles (it beat the last 6,
+        // and Clue's average of 12, when backtested on real Clue history);
+        // the range from how much the last 6 varied.
         let recent = plausibleCycles.suffix(6).map(\.length)
-        let length = recent.count >= 2 ? Int(Self.median(recent.map(Double.init))!.rounded()) : typicalCycleLength
+        let longer = plausibleCycles.suffix(12).map(\.length)
+        let length = longer.count >= 2 ? Int(Self.median(longer.map(Double.init))!.rounded()) : typicalCycleLength
         let spread: Int
         if recent.count >= 2, let low = recent.min(), let high = recent.max() {
             spread = min(7, max(1, Int((Double(high - low) / 2).rounded(.up))))

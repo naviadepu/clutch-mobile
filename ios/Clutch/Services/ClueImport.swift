@@ -71,7 +71,7 @@ enum ClueImport {
     /// feelings and symptoms in Clutch's catalog.
     static let measurementTypes: Set<String> = [
         "period", "bleeding", "flow", "menstruation", "pain", "feelings", "emotion", "emotions",
-        "mind", "digestion", "craving", "cravings", "sleep_quality", "sleep",
+        "mind", "digestion", "craving", "cravings", "sleep_quality", "sleep", "pms",
     ]
 
     private static let dateKeys: Set<String> = ["day", "date", "timestamp", "start", "starttime", "start_date"]
@@ -120,6 +120,13 @@ enum ClueImport {
             }
             return
         }
+        if category == "pms" {
+            if options.contains(where: { ["yes", "true", "1"].contains($0) }) { day.pms = true }
+            return
+        }
+        if ["feelings", "feeling", "emotion", "emotions", "mood"].contains(category), let mood = mood(from: options) {
+            day.mood = day.mood.map { min($0, mood) } ?? mood
+        }
         if category.contains("craving") && !options.isEmpty {
             day.symptoms.insert("cravings")
         }
@@ -132,6 +139,21 @@ enum ClueImport {
         guard !category.contains("energy") else { return }
         for option in options + [category] {
             if let symptom = symptom(from: option) { day.symptoms.insert(symptom) }
+        }
+    }
+
+    /// A rough 1–5 mood from the feelings she picked: good ones lift it,
+    /// hard ones lower it, a mix sits in the middle.
+    static func mood(from options: [String]) -> Int? {
+        let good = ["happy", "content", "calm", "confident", "excited", "energetic", "great", "good"]
+        let hard = ["sad", "sensitive", "irritable", "angry", "anxious", "frustrated", "low", "unhappy", "mood_swings", "depressed"]
+        let isGood = options.contains { o in good.contains { o.contains($0) } }
+        let isHard = options.contains { o in hard.contains { o.contains($0) } }
+        switch (isGood, isHard) {
+        case (true, true): return 3
+        case (true, false): return 4
+        case (false, true): return 2
+        default: return nil
         }
     }
 
