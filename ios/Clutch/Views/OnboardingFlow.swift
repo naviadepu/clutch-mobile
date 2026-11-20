@@ -186,8 +186,7 @@ struct OnboardingQuestion<Content: View>: View {
                 Button(action: onBack) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(.white)
-                        .shadow(color: OnboardingStyle.plum.opacity(0.5), radius: 3)
+                        .foregroundStyle(OnboardingStyle.plum)
                         .frame(width: 38, height: 38)
                         .liveGlass(Circle())
                 }
@@ -243,8 +242,7 @@ struct GlassAnswer: View {
         Button(action: action) {
             Text(title)
                 .font(.custom("Quicksand-Regular", size: pill ? 15 : 18))
-                .foregroundStyle(selected ? OnboardingStyle.plum : .white)
-                .shadow(color: OnboardingStyle.plum.opacity(selected ? 0 : 0.5), radius: 4, y: 1)
+                .foregroundStyle(OnboardingStyle.plum)
                 .frame(maxWidth: pill ? nil : .infinity)
                 .padding(.horizontal, pill ? 24 : 20)
                 .padding(.vertical, pill ? 11 : 18)
@@ -279,7 +277,7 @@ struct RecentDaysPicker: View {
                 ForEach(Array(calendar.veryShortStandaloneWeekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
                         .font(.custom("Quicksand-Regular", size: 12))
-                        .foregroundStyle(.white.opacity(0.85))
+                        .foregroundStyle(OnboardingStyle.plum.opacity(0.6))
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -306,10 +304,10 @@ struct RecentDaysPicker: View {
                 Text("\(calendar.component(.day, from: day))")
                     .font(.custom("Quicksand-Regular", size: 15))
             }
-            .foregroundStyle(isSelected ? OnboardingStyle.plum : .white)
+            .foregroundStyle(OnboardingStyle.plum)
             .frame(width: 38, height: 38)
-            .background(Circle().fill(isSelected ? .white.opacity(0.95) : .white.opacity(0.12)))
-            .overlay(Circle().strokeBorder(.white.opacity(isToday && !isSelected ? 0.9 : 0), lineWidth: 1.2))
+            .background(Circle().fill(isSelected ? .white.opacity(0.95) : .white.opacity(0.3)))
+            .overlay(Circle().strokeBorder(OnboardingStyle.plum.opacity(isToday && !isSelected ? 0.55 : 0), lineWidth: 1.2))
             .scaleEffect(isSelected ? 1.08 : 1)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
         }
@@ -368,8 +366,7 @@ struct OnboardingReady: View {
             Button(action: onStart) {
                 Text("Start my garden")
                     .font(.custom("Quicksand-Regular", size: 18))
-                    .foregroundStyle(.white)
-                    .shadow(color: OnboardingStyle.plum.opacity(0.3), radius: 3, y: 1)
+                    .foregroundStyle(OnboardingStyle.plum)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
                     .liveGlass(Capsule())
@@ -422,9 +419,10 @@ extension View {
         background {
             ZStack {
                 shape.fill(.ultraThinMaterial)
-                shape.fill(OnboardingStyle.plum.opacity(0.18))
-                shape.fill(LinearGradient(colors: [.white.opacity(0.3), .white.opacity(0.04), .clear], startPoint: .top, endPoint: .center))
-                shape.strokeBorder(.white.opacity(0.45), lineWidth: 8).blur(radius: 8)
+                // White glass: a milky pane with light across its top.
+                shape.fill(.white.opacity(0.32))
+                shape.fill(LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.08), .clear], startPoint: .top, endPoint: .center))
+                shape.strokeBorder(.white.opacity(0.7), lineWidth: 8).blur(radius: 8)
                 shape.strokeBorder(
                     AngularGradient(
                         colors: [
@@ -464,6 +462,8 @@ struct OnboardingImportStep: View {
     @State private var pickingFile = false
     @State private var cycles: Int?
     @State private var problem: String?
+    @State private var lockedZip: Data?
+    @State private var password = ""
 
     var body: some View {
         OnboardingQuestion(
@@ -507,14 +507,24 @@ struct OnboardingImportStep: View {
             }
             .disabled(working)
         }
-        .fileImporter(isPresented: $pickingFile, allowedContentTypes: [.folder, .json, .commaSeparatedText, .plainText, .data]) { picked in
+        .fileImporter(isPresented: $pickingFile, allowedContentTypes: [.zip, .folder, .json, .commaSeparatedText, .plainText, .data]) { picked in
             if case let .success(url) = picked { importFile(url) }
+        }
+        .alert("Clue's password", isPresented: Binding(get: { lockedZip != nil }, set: { if !$0 { lockedZip = nil } })) {
+            SecureField("Password", text: $password)
+            Button("Import") {
+                if let zip = lockedZip { importData(zip, password: password) }
+                lockedZip = nil
+            }
+            Button("Cancel", role: .cancel) { lockedZip = nil }
+        } message: {
+            Text("Clue showed you a password when you asked to download your data.")
         }
     }
 
     private var hint: String {
         plan.tracker == .clue
-            ? "Turn on Apple Health in Clue and connect, or download your data in Clue (Settings \u{203A} Download my data), unzip it, and pick the folder."
+            ? "Turn on Apple Health in Clue and connect, or download your data in Clue (Settings \u{203A} Download my data) and pick the zip."
             : "If your app saves to Apple Health (Flo and most do), connect it. You can always do this later."
     }
 
@@ -530,18 +540,32 @@ struct OnboardingImportStep: View {
 
     private func importFile(_ url: URL) {
         problem = nil
-        let access = url.startAccessingSecurityScopedResource()
-        defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
-            let days = try ClueImport.parse(Data(contentsOf: ClueImport.dataFile(in: url)))
+            importData(try ClueImport.readPicked(url), password: nil)
+        } catch {
+            problem = "Couldn't open that (\(error.localizedDescription)). Pick the zip from Clue's email."
+        }
+    }
+
+    private func importData(_ data: Data, password entered: String?) {
+        problem = nil
+        do {
+            let days = try ClueImport.days(from: data, password: entered)
             PeriodImport.merge(days, source: .clue)
+            password = ""
             land(emptyMessage: "That file didn't have any periods in it.")
+        } catch ZipReader.Failure.needsPassword {
+            password = ""
+            lockedZip = data
+        } catch ZipReader.Failure.wrongPassword {
+            problem = "That password didn't work. It's the one Clue showed when you asked for your data."
+            password = ""
+            lockedZip = data
         } catch ClueImport.Failure.noPeriodData {
             problem = "That file didn't have any periods in it."
         } catch {
-            problem = url.pathExtension.lowercased() == "zip"
-                ? "Unzip it in Files first (with the password Clue showed you), then pick the folder."
-                : "Couldn't read that. Pick the folder from Clue's download."
+            // The reason, so a beta tester can tell us what went wrong.
+            problem = "Couldn't read that (\(String(describing: error))). Pick the zip from Clue's email."
         }
     }
 

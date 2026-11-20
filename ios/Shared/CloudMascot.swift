@@ -428,12 +428,6 @@ struct MascotSceneView: View {
                             .position(x: size.width * p.0, y: size.height * p.1)
                     }
                 }
-                if hasFlower {
-                    Image(systemName: "camera.macro")
-                        .font(.system(size: min(size.width, size.height) * 0.09, weight: .semibold))
-                        .foregroundStyle(CloudPalette.blush)
-                        .position(x: size.width * 0.92, y: size.height * 0.1)
-                }
             }
         }
         .clipped()
@@ -482,29 +476,13 @@ struct MascotSceneView: View {
         }
     }
 
+    /// Kept simple: no props in front of the cloud (they read as legs), just
+    /// the pup when it's cuddle time.
     @ViewBuilder
     private func sofaProps(_ size: CGSize) -> some View {
         let w = size.width, h = size.height, s = min(w, h)
-        switch scene {
-        case .study:
-            symbol("book.fill", s * 0.12, CloudPalette.blush).position(x: w * 0.5, y: h * 0.74)
-            symbol("cup.and.saucer.fill", s * 0.09, .white).position(x: w * 0.1, y: h * 0.88)
-        case .journal:
-            symbol("book.closed.fill", s * 0.11, CloudPalette.blush).position(x: w * 0.5, y: h * 0.74)
-            symbol("lamp.floor.fill", s * 0.3, Color(red: 1, green: 0.88, blue: 0.62)).position(x: w * 0.1, y: h * 0.5)
-        case .packing:
-            symbol("bag.fill", s * 0.14, CloudPalette.blush).position(x: w * 0.86, y: h * 0.8)
-            symbol("heart.fill", s * 0.06, CloudPalette.blush).position(x: w * 0.86, y: h * 0.62)
-        case .cozyTea:
-            symbol("mug.fill", s * 0.1, .white).position(x: w * 0.5, y: h * 0.7)
-            symbol("heart.fill", s * 0.06, CloudPalette.blush).position(x: w * 0.75, y: h * 0.18)
-        case .cuddle:
+        if scene == .cuddle {
             pup(s: s * 0.95).position(x: w * 0.72, y: h * 0.62)
-            symbol("heart.fill", s * 0.06, CloudPalette.blush).position(x: w * 0.6, y: h * 0.16)
-        case .drizzle:
-            symbol("mug.fill", s * 0.09, CloudPalette.blush).position(x: w * 0.5, y: h * 0.74)
-        default:
-            EmptyView()
         }
     }
 
@@ -521,8 +499,6 @@ struct MascotSceneView: View {
                 Text("z z").font(.system(size: s * 0.09, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.85)).position(x: w * 0.3, y: h * 0.2)
                 pup(s: s * 0.75).position(x: w * 0.16, y: h * 0.74)
-            } else {
-                HotWaterBottle().frame(width: s * 0.13).position(x: w * 0.82, y: h * 0.72)
             }
         }
     }
@@ -533,13 +509,7 @@ struct MascotSceneView: View {
             room(size, windowAt: 0.5, windowWidth: 0.3)
             cloud(size, width: 0.58, x: 0.5, y: 0.6, paws: true)
             Counter().frame(width: w, height: h * 0.3).position(x: w / 2, y: h * 0.86)
-            if scene == .breakfast {
-                symbol("frying.pan.fill", s * 0.15, CloudPalette.ink.opacity(0.75)).position(x: w * 0.8, y: h * 0.68)
-                symbol("cup.and.saucer.fill", s * 0.09, CloudPalette.blush).position(x: w * 0.16, y: h * 0.69)
-            } else {
-                symbol("fork.knife", s * 0.11, CloudPalette.ink.opacity(0.7)).position(x: w * 0.82, y: h * 0.66)
-                symbol("flame.fill", s * 0.07, .orange.opacity(0.85)).position(x: w * 0.18, y: h * 0.68)
-            }
+
         }
     }
 

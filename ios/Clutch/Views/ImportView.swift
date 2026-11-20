@@ -15,6 +15,9 @@ struct ImportView: View {
     @State private var result: PeriodImport.Summary?
     @State private var source: ImportSource?
     @State private var problem: String?
+    /// Clue's zip, waiting for its password.
+    @State private var lockedZip: Data?
+    @State private var password = ""
 
     var body: some View {
         ClutchPage(title: "bring your history", subtitle: "Every past cycle makes your predictions sharper.") {
@@ -58,8 +61,18 @@ struct ImportView: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .fileImporter(isPresented: $pickingFile, allowedContentTypes: [.folder, .json, .commaSeparatedText, .plainText, .data]) { picked in
+        .fileImporter(isPresented: $pickingFile, allowedContentTypes: [.zip, .folder, .json, .commaSeparatedText, .plainText, .data]) { picked in
             if case let .success(url) = picked { importFile(url) }
+        }
+        .alert("Clue's password", isPresented: Binding(get: { lockedZip != nil }, set: { if !$0 { lockedZip = nil } })) {
+            SecureField("Password", text: $password)
+            Button("Import") {
+                if let zip = lockedZip { importData(zip, password: password) }
+                lockedZip = nil
+            }
+            Button("Cancel", role: .cancel) { lockedZip = nil }
+        } message: {
+            Text("Clue showed you a password when you asked to download your data.")
         }
     }
 
@@ -92,8 +105,8 @@ struct ImportView: View {
             Text("GETTING YOUR CLUE FILE").detailsLabel()
             HStack(alignment: .top, spacing: 6) {
                 step("1", "gearshape", "Clue \u{203A} Settings \u{203A} Download my data")
-                step("2", "envelope.open", "Open the email, unzip with Clue's password")
-                step("3", "folder", "Pick the folder here")
+                step("2", "envelope.open", "Save the zip from Clue's email")
+                step("3", "doc.zipper", "Pick it here, then type Clue's password")
             }
         }
         .padding(.top, 4)
@@ -195,25 +208,36 @@ struct ImportView: View {
 
     private func importFile(_ url: URL) {
         problem = nil
-        working = true
-        let access = url.startAccessingSecurityScopedResource()
-        defer {
-            if access { url.stopAccessingSecurityScopedResource() }
-            working = false
-        }
         do {
-            let data = try Data(contentsOf: ClueImport.dataFile(in: url))
-            let days = try ClueImport.parse(data)
-            let added = PeriodImport.merge(days, source: .clue)
-            finish(PeriodImport.summary(daysAdded: added), from: .clue)
-        } catch ClueImport.Failure.noPeriodData {
-            problem = "That file doesn't have any period days in it. Try the data file from Clue's email."
+            importData(try ClueImport.readPicked(url), password: nil)
         } catch {
-            problem = url.pathExtension.lowercased() == "zip"
-                ? "Unzip it in Files first (it uses the password Clue showed you), then pick the folder."
-                : "Couldn't read that file. Try the data file from Clue's email."
+            problem = "Couldn't open that (\(error.localizedDescription)). Pick the zip from Clue's email."
         }
     }
+
+    private func importData(_ data: Data, password: String?) {
+        problem = nil
+        do {
+            let days = try ClueImport.days(from: data, password: password)
+            let added = PeriodImport.merge(days, source: .clue)
+            password_reset()
+            finish(PeriodImport.summary(daysAdded: added), from: .clue)
+        } catch ZipReader.Failure.needsPassword {
+            password_reset()
+            lockedZip = data
+        } catch ZipReader.Failure.wrongPassword {
+            problem = "That password didn't work. It's the one Clue showed when you asked for your data."
+            password_reset()
+            lockedZip = data
+        } catch ClueImport.Failure.noPeriodData {
+            problem = "That file doesn't have any period days in it."
+        } catch {
+            // The reason, so a beta tester can tell us what went wrong.
+            problem = "Couldn't read that (\(String(describing: error))). Pick the zip from Clue's email."
+        }
+    }
+
+    private func password_reset() { password = "" }
 
     private func finish(_ summary: PeriodImport.Summary, from source: ImportSource) {
         WidgetBridge.refresh()

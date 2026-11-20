@@ -90,8 +90,17 @@ final class PeriodImportTests: XCTestCase {
     private let calendar = Calendar.current
     private func day(_ d: Int) -> Date { calendar.date(from: DateComponents(year: 2001, month: 1, day: d))! }
 
+    /// Merging can move the profile's last period; put the real one back.
+    private var savedProfile: CycleProfile?
+
+    override func setUp() {
+        super.setUp()
+        savedProfile = CycleProfile.load()
+    }
+
     override func tearDown() {
         for d in 1...31 { DayLogStore.remove(for: day(d)) }
+        if let savedProfile { savedProfile.save() }
         super.tearDown()
     }
 

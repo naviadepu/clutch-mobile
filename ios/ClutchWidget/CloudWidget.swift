@@ -43,6 +43,8 @@ struct CloudWidgetView: View {
             }
         }
         .widgetURL(URL(string: "clutch://\(entry.moment.route)"))
+        // The cloud's palette is made for light; it stays that way in Dark Mode.
+        .environment(\.colorScheme, .light)
     }
 
     private var scene: some View {

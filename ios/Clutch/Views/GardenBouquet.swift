@@ -537,6 +537,41 @@ struct PlantedSeed: View {
 /// Renders a bouquet to a square image for sharing.
 @MainActor
 enum BouquetSnapshot {
+    /// The Instagram Story version: full-screen 9:16 (1080 × 1920), so it
+    /// fills a story instead of being cropped. Words stay clear of the top
+    /// and bottom bands Instagram covers with its own controls.
+    static func story(of flowers: [PlantedFlower], signature: UIImage?, style: BouquetStyle, caption: String, date: Date = .now) -> UIImage? {
+        let content = ZStack {
+            BlushGradient()
+            VStack(spacing: 0) {
+                Spacer(minLength: 0).frame(height: 120)
+                Text("Clutch")
+                    .font(.custom("PinyonScript-Regular", size: 46))
+                    .foregroundStyle(Color.ink)
+                Spacer(minLength: 0)
+                Bouquet(flowers: flowers, reduceMotion: true, animatesIn: false, signature: signature, style: style)
+                    .scaleEffect(0.78, anchor: .bottom)
+                    .frame(width: Bouquet.size.width * 0.78, height: Bouquet.size.height * 0.78, alignment: .bottom)
+                Spacer(minLength: 0)
+                VStack(spacing: 6) {
+                    Text(date.formatted(.dateTime.month(.wide).day()))
+                        .font(.custom("DMSans-Regular", size: 13))
+                        .tracking(1.6)
+                        .textCase(.uppercase)
+                    Text(caption)
+                        .font(.system(size: 20, design: .serif).italic())
+                }
+                .foregroundStyle(Color.ink.opacity(0.8))
+                Spacer(minLength: 0).frame(height: 150)
+            }
+        }
+        .frame(width: 360, height: 640)
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = 3
+        return renderer.uiImage
+    }
+
     /// The share card: 4:5 (1080 × 1350), the bouquet on the blush
     /// gradient, the wordmark above, the day and caption below.
     static func card(of flowers: [PlantedFlower], signature: UIImage?, style: BouquetStyle, caption: String, date: Date = .now) -> UIImage? {

@@ -729,6 +729,8 @@ struct PolaroidCard: View {
 
     @State private var includeName = true
     @State private var image: UIImage?
+    /// The 9:16 version for Instagram Stories.
+    @State private var storyImage: UIImage?
     @State private var note: String?
 
     var body: some View {
@@ -760,7 +762,7 @@ struct PolaroidCard: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("INSTAGRAM").detailsLabel()
                     HStack(spacing: 0) {
-                        target("Story", "circle.dashed", palette: 1) { BouquetSharing.shareStory($0, text: shareText, saved: savedNote) }
+                        target("Story", "circle.dashed", palette: 1) { BouquetSharing.shareStory(storyImage ?? $0, text: shareText, saved: savedNote) }
                         target("Post", "square.grid.2x2", palette: 3) { BouquetSharing.shareToInstagramPost($0, text: shareText, saved: savedNote) }
                         target("Message", "paperplane", palette: 2) { BouquetSharing.shareToInstagramMessage($0) }
                     }
@@ -840,6 +842,7 @@ struct PolaroidCard: View {
     private func render() {
         note = nil
         image = BouquetSnapshot.card(of: flowers, signature: includeName ? signature : nil, style: style, caption: caption)
+        storyImage = BouquetSnapshot.story(of: flowers, signature: includeName ? signature : nil, style: style, caption: caption)
     }
 }
 

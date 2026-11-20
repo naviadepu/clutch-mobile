@@ -26,11 +26,10 @@ enum BouquetSharing {
               let sticker = image.pngData()
         else { return false }
 
+        // A full-screen 9:16 background, so the story isn't cropped.
         UIPasteboard.general.setItems(
             [[
-                "com.instagram.sharedSticker.stickerImage": sticker,
-                "com.instagram.sharedSticker.backgroundTopColor": "#FDF1F3",
-                "com.instagram.sharedSticker.backgroundBottomColor": "#E8A9BA",
+                "com.instagram.sharedSticker.backgroundImage": sticker,
             ]],
             options: [.expirationDate: Date().addingTimeInterval(5 * 60)]
         )

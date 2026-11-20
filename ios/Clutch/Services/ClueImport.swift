@@ -210,3 +210,25 @@ extension ClueImport {
         return url
     }
 }
+
+extension ClueImport {
+    /// The picked file as bytes: a folder's `measurements.json`, or the
+    /// file itself (a zip, JSON or CSV). Read while access is open.
+    static func readPicked(_ url: URL) throws -> Data {
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        return try Data(contentsOf: dataFile(in: url))
+    }
+
+    /// Days from what she picked. Clue's download is a password-locked zip;
+    /// without the password this throws `ZipReader.Failure.needsPassword`
+    /// so the screen can ask for it.
+    static func days(from data: Data, password: String? = nil) throws -> [ImportedDay] {
+        guard ZipReader.isZip(data) else { return try parse(data) }
+        let entries = try ZipReader.entries(data)
+        let file = entries.first { ($0.name as NSString).lastPathComponent.lowercased() == "measurements.json" }
+            ?? entries.first { ["json", "csv"].contains(($0.name as NSString).pathExtension.lowercased()) }
+        guard let file else { throw Failure.noPeriodData }
+        return try parse(ZipReader.extract(file, from: data, password: password))
+    }
+}

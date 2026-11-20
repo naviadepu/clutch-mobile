@@ -143,22 +143,6 @@ struct BloomCelebration: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 12)
 
-            Button(action: onDetails) {
-                HStack(spacing: 8) {
-                    Text("See full details")
-                        .font(.custom("HelveticaNeue-Medium", size: 15))
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 13, weight: .medium))
-                }
-                .foregroundStyle(Color(hex: 0xFDF6F2))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Color.ink, in: Capsule())
-                .shadow(color: Color.ink.opacity(0.25), radius: 12, y: 6)
-            }
-            .buttonStyle(.plain)
-
-            GardenChip(title: "Done", symbol: "checkmark", action: onDone)
         }
         .padding(.horizontal, 28)
     }
@@ -176,6 +160,9 @@ struct BloomCelebration: View {
                 tick()
                 guard await pause(0.5) else { return }
                 withAnimation(.easeInOut(duration: 0.3)) { step = .settled }
+                // Straight on to sharing it.
+                guard await pause(1.0) else { return }
+                onDone()
                 return
             }
 
@@ -192,6 +179,9 @@ struct BloomCelebration: View {
             withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) { pop = false }
             guard await pause(0.25) else { return }
             withAnimation(.easeInOut(duration: 0.35)) { step = .settled }
+            // A beat to read the line, then straight on to sharing it.
+            guard await pause(1.2) else { return }
+            onDone()
         }
     }
 
