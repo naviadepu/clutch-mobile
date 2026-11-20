@@ -740,51 +740,52 @@ struct PolaroidCard: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Share your bouquet")
-                .font(.custom("PinyonScript-Regular", size: 36))
+            Text("share your bouquet")
+                .font(.custom("Quicksand-Light", size: 30))
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.2), radius: 6, y: 2)
+
+            // The portrait card, as it looks in a story or saved to Photos.
             Group {
-                if let image {
-                    Image(uiImage: image).resizable().scaledToFit()
+                if let storyImage {
+                    Image(uiImage: storyImage).resizable().scaledToFit()
                 } else {
                     BlushGradient()
                 }
             }
-            .frame(width: 236, height: 295)
+            .frame(width: 214, height: 380)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white.opacity(0.9), lineWidth: 1))
             .shadow(color: Color(hex: 0xB0587F).opacity(0.35), radius: 24, y: 14)
-
-            VStack(spacing: 16) {
-                if signature != nil {
-                    Toggle("Include my name", isOn: $includeName)
-                        .font(.custom("DMSans-Regular", size: 14))
+            .overlay(alignment: .topTrailing) {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(Color.ink)
-                        .tint(Color(hex: 0xD68EA5))
+                        .frame(width: 24, height: 24)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().strokeBorder(.white.opacity(0.8), lineWidth: 0.6))
                 }
+                .padding(10)
+                .contentShape(Rectangle())
+                .offset(x: 18, y: -18)
+                .accessibilityLabel("Close")
+            }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("INSTAGRAM").detailsLabel()
-                    HStack(spacing: 0) {
-                        target("Story", "circle.dashed", palette: 1) { BouquetSharing.shareStory(storyImage ?? $0, text: shareText, saved: savedNote) }
-                        target("Post", "square.grid.2x2", palette: 3) { BouquetSharing.shareToInstagramPost($0, text: shareText, saved: savedNote) }
-                        target("Message", "paperplane", palette: 2) { BouquetSharing.shareToInstagramMessage($0) }
-                    }
-                }
-
-                Rectangle().fill(Color.ink.opacity(0.1)).frame(height: 0.6)
-
+            VStack(spacing: 12) {
                 HStack(spacing: 0) {
-                    target("iMessage", "message", palette: 0) { image in
+                    target("Story", "circle.dashed", palette: 1) { BouquetSharing.shareStory(storyImage ?? $0, text: shareText, saved: savedNote) }
+                    target("Post", "square.grid.2x2", palette: 3) { BouquetSharing.shareToInstagramPost($0, text: shareText, saved: savedNote) }
+                    target("Message", "paperplane", palette: 2) { BouquetSharing.shareToInstagramMessage($0) }
+                    target("iMessage", "message", palette: 0) { _ in
+                        let image = storyImage ?? self.image!
                         if !BouquetSharing.shareToMessages(image, body: shareText) { BouquetSharing.presentShareSheet(image, text: shareText) }
                     }
-                    target("Save", "arrow.down.to.line", palette: 4) { image in
-                        BouquetSharing.saveToPhotos(image) { ok in
+                    target("Save", "arrow.down.to.line", palette: 4) { _ in
+                        BouquetSharing.saveToPhotos(storyImage ?? self.image!) { ok in
                             withAnimation { note = ok ? "Saved to Photos" : "Allow Photos access in Settings to save" }
                         }
                     }
-                    Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
                 }
 
                 if let note {
@@ -804,24 +805,12 @@ struct PolaroidCard: View {
             .shadow(color: Color(hex: 0xB0587F).opacity(0.18), radius: 18, y: 8)
         }
         .padding(.horizontal, 24)
-        .overlay(alignment: .topTrailing) {
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.ink)
-                    .frame(width: 32, height: 32)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(.white.opacity(0.8), lineWidth: 0.6))
-            }
-            .padding(.trailing, 44)
-            .padding(.top, -8)
-            .accessibilityLabel("Close")
-        }
+
         .onAppear(perform: render)
         .onChange(of: includeName) { render() }
     }
 
-    private var shareText: String { "\(caption) \u{2014} my Clutch bouquet" }
+    private var shareText: String { "My Clutch bouquet" }
 
     private func savedNote(_ ok: Bool) {
         withAnimation { note = ok ? "Saved to Photos, opening Instagram" : "Allow Photos access in Settings to share" }
@@ -833,10 +822,12 @@ struct PolaroidCard: View {
         } label: {
             VStack(spacing: 6) {
                 AuraTile(palette: AuraTile.hints[palette], symbol: symbol)
-                    .frame(width: 52, height: 52)
+                    .frame(width: 46, height: 46)
                 Text(title)
-                    .font(.custom("DMSans-Regular", size: 12))
+                    .font(.custom("DMSans-Regular", size: 11))
                     .foregroundStyle(Color.ink)
+                    .lineLimit(1)
+                    .fixedSize()
             }
             .frame(maxWidth: .infinity)
         }

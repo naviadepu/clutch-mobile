@@ -553,15 +553,11 @@ enum BouquetSnapshot {
                     .scaleEffect(0.78, anchor: .bottom)
                     .frame(width: Bouquet.size.width * 0.78, height: Bouquet.size.height * 0.78, alignment: .bottom)
                 Spacer(minLength: 0)
-                VStack(spacing: 6) {
-                    Text(date.formatted(.dateTime.month(.wide).day()))
-                        .font(.custom("DMSans-Regular", size: 13))
-                        .tracking(1.6)
-                        .textCase(.uppercase)
-                    Text(caption)
-                        .font(.system(size: 20, design: .serif).italic())
-                }
-                .foregroundStyle(Color.ink.opacity(0.8))
+                Text(date.formatted(.dateTime.month(.wide).day()))
+                    .font(.custom("DMSans-Regular", size: 13))
+                    .tracking(1.6)
+                    .textCase(.uppercase)
+                    .foregroundStyle(Color.ink.opacity(0.8))
                 Spacer(minLength: 0).frame(height: 150)
             }
         }
@@ -587,15 +583,11 @@ enum BouquetSnapshot {
                     .scaleEffect(0.6, anchor: .bottom)
                     .frame(width: Bouquet.size.width * 0.6, height: Bouquet.size.height * 0.6, alignment: .bottom)
                 Spacer(minLength: 0)
-                VStack(spacing: 4) {
-                    Text(date.formatted(.dateTime.month(.wide).day()))
-                        .font(.custom("DMSans-Regular", size: 12))
-                        .tracking(1.5)
-                        .textCase(.uppercase)
-                    Text(caption)
-                        .font(.system(size: 17, design: .serif).italic())
-                }
-                .foregroundStyle(Color.ink.opacity(0.8))
+                Text(date.formatted(.dateTime.month(.wide).day()))
+                    .font(.custom("DMSans-Regular", size: 12))
+                    .tracking(1.5)
+                    .textCase(.uppercase)
+                    .foregroundStyle(Color.ink.opacity(0.8))
                 .padding(.bottom, 28)
             }
         }
